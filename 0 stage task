@@ -1,0 +1,96 @@
+Project 1: BASh Basic
+# 1. Print your name
+habiba_faried22@cloudshell:~$echo “habiba”
+# 2. Create a folder titled your name
+habiba_faried22@cloudshell:~$mkdir habiba
+# 3. Create another new directory titled biocomputing and change to that directory with one line of command
+habiba_faried22@cloudshell:~$mkdir biocomputing && cd biocomputing
+# 4. Download these 3 files:
+habiba_faried22@cloudshell:~/biocomputing$wget https://raw.githubusercontent.com/josoga2/dataset-repos/main/wildtype.fna
+wget https://raw.githubusercontent.com/josoga2/dataset-repos/main/wildtype.gbk
+wget https://raw.githubusercontent.com/josoga2/dataset-repos/main/wildtype.gbk
+# 5. Move the .fna file to the folder titled your name
+habiba_faried22@cloudshell:~/biocomputing$ mv wildtype.fna ../habiba/ 
+# 6. Delete the duplicate gbk file
+habiba_faried22@cloudshell:~/biocomputing$ rm wildtype.gbk.1
+# 7. Confirm if the .fna file is mutant or wild type (tatatata vs tata)
+habiba_faried22@cloudshell:~/biocomputing$ cd ../
+habiba_faried22@cloudshell:~$ cd habiba
+habiba_faried22@cloudshell:~/habiba$ grep "tatatata" ../habiba/wildtype.fna
+# or 
+habiba_faried22@cloudshell:~/habiba$ if grep -q "tatatata" ../habiba/wildtype.fna; then
+    echo "Mutant"
+elif grep -q "tata" ../habiba/wildtype.fna; then
+    echo "Wild type"
+else
+    echo "Pattern not found"
+fi
+# 8. If mutant, print all matching lines into a new file
+habiba_faried22@cloudshell:~/habiba$ grep 'tatatata' ../habiba/wildtype.fna > mutant_lines.txt
+# 9. Count number of lines (excluding header) in the .gbk file
+habiba_faried22@cloudshell:~/habiba$ cd../
+habiba_faried22@cloudshell:~$ cd biocomputing
+habiba_faried22@cloudshell:~/biocomputing$ wc -l wildtype.gbk
+ answer 5750 wildtype.gbk
+# 10. Print the sequence length of the .gbk file. (Use the LOCUS tag in the first line)
+habiba_faried22@cloudshell:~/biocomputing$ awk 'NR==1{for(i=1;i<=NF;i++) if($(i+1)=="bp" && $i ~ /^[0-9]+$/){print $i; exit}}' wildtype.gbk
+# answer=197394
+# 11. Print the source organism of the .gbk file. (Use the SOURCE tag in the first line)
+habiba_faried22@cloudshell:~/biocomputing$ awk '/^SOURCE/{sub(/^SOURCE[ \t]+/, ""); print; exit}' wildtype.gbk
+# 12. List all the gene names of the .gbk file. Hint {grep '/gene='}
+habiba_faried22@cloudshell:~/biocomputing$ grep '/gene=' wildtype.gbk
+#for unique output
+habiba_faried22@cloudshell:~/biocomputing$ grep -o '/gene="[^"]*"' wildtype.gbk | sed 's|/gene="||; s|"||' | sort -u
+# 13. Clear your terminal space and print all commands used today
+ habiba_faried22@cloudshell:~/biocomputing$ Clear or ctrl+l
+habiba_faried22@cloudshell:~/biocomputing$ History 
+# 14. List the files in the two folders
+habiba_faried22@cloudshell:~/biocomputing$ Biocomputing$ ls
+habiba_faried22@cloudshell:~$ cd ../ 
+habiba_faried22@cloudshell:~/habiba$ Habiba$ls
+Project 2: Installing Bioinformatics Software on the Terminal
+# 1. Activate your base conda environment
+habiba_faried22@cloudshell:~$ conda activate base
+(base) habiba_faried22@cloudshell:~$ conda –version
+25.7.0
+
+# 2.Create a conda environment named funtools
+(base) habiba_faried22@cloudshell:~$ conda create -n funtools
+
+#3. Activate the funtools environment
+(base) habiba_faried22@cloudshell:~$ conda activate funtools
+
+#4. Install Figlet using conda or apt-get
+(funtools) habiba_faried22@cloudshell:~$ conda install -c conda-forge figlet
+Or
+ habiba_fariedd22@cloudshell:~$ sudo apt-get update
+sudo apt-get install figlet -y
+
+#5. Run figlet <your name>
+habiba_fariedd22@cloudshell:~$ figlet Habiba
+ 
+
+#6. Install bwa through the bioconda channel
+(funtools) habiba_faried22@cloudshell:~$ conda install -c bioconda bwa
+
+
+#7. Install blast through the bioconda channel
+(funtools) habiba_faried22@cloudshell:~$ conda install -c bioconda blast 
+#8. Install samtools through the bioconda channel
+(funtools) habiba_faried22@cloudshell:~$ conda install -c bioconda samtools
+
+#9. Install bedtools through the bioconda channel
+(funtools) habiba_faried22@cloudshell:~$ conda install -c bioconda bedtools 
+
+#10. Install spades.py through the bioconda channel
+(funtools) habiba_faried22@cloudshell:~$ conda install -c bioconda spades
+
+#11. Install bcftools through the bioconda channel
+(funtools) habiba_faried22@cloudshell:~$ conda install -c bioconda bcftools
+
+#12. Install fastp through the bioconda channel
+(funtools) habiba_faried22@cloudshell:~$ conda install -c bioconda fastp
+
+#13. Install multiqc through the bioconda channel
+(funtools) habiba_faried22@cloudshell:~$ conda install -c bioconda multiqc
+
