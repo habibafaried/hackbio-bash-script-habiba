@@ -3,6 +3,8 @@
 # ==============================
 conda create -n assembly_tutorial -c bioconda -c conda-forge spades quast fastqc -y
 conda activate assembly_tutorial
+conda activate assembly_tutorial
+
 
 # ==============================
 # 2. Download paired-end dataset (SRR13554759)
