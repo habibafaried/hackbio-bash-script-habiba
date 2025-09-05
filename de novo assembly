@@ -17,8 +17,13 @@ wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR135/059/SRR13554759/SRR13554759_2.fas
 # ==============================
 mkdir fastqc_results
 fastqc SRR13554759_1.fastq.gz SRR13554759_2.fastq.gz -o fastqc_results
+#instead this use
+fastqc raw_reads/*.fastq.gz -o fastqc_results/
 
 # (Optional: view results by opening the HTML files in fastqc_results/)
+trimming data
+fastp -i SRR13554759_1.fastq.gz -I SRR13554759_2.fastq.gz -o trim/SRR13554759_1.trim.fastq.gz -O trim/SRR13554759_2.trim.fastq.gz
+fastp -i SRR13554759_1.fastq.gz -I SRR13554759_2.fastq.gz -o trim/SRR13554759_1.trim.fastq.gz -O trim/SRR13554759_2.trim.fastq.gz
 
 # ==============================
 # 4. Run SPAdes genome assembler
