@@ -1,0 +1,41 @@
+# ==============================
+# 1. Create and activate a conda environment
+# ==============================
+conda create -n assembly_tutorial -c bioconda -c conda-forge spades quast fastqc -y
+conda activate assembly_tutorial
+
+# ==============================
+# 2. Download paired-end dataset (SRR13554759)
+# ==============================
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR135/059/SRR13554759/SRR13554759_1.fastq.gz
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR135/059/SRR13554759/SRR13554759_2.fastq.gz
+
+# ==============================
+# 3. Quality check with FastQC
+# ==============================
+mkdir fastqc_results
+fastqc SRR13554759_1.fastq.gz SRR13554759_2.fastq.gz -o fastqc_results
+
+# (Optional: view results by opening the HTML files in fastqc_results/)
+
+# ==============================
+# 4. Run SPAdes genome assembler
+# ==============================
+spades.py \
+  -1 SRR13554759_1.fastq.gz \
+  -2 SRR13554759_2.fastq.gz \
+  -o spades_output \
+  -t 4 -m 8
+# (-t = number of threads, -m = memory in GB; adjust depending on your machine)
+
+# ==============================
+# 5. Evaluate assembly with Quast
+# ==============================
+quast spades_output/contigs.fasta -o quast_report
+
+# ==============================
+# 6. Visualize assembly graph (Bandage, GUI tool)
+# ==============================
+# Bandage cannot be installed via terminal (needs GUI).
+# Download here: https://rrwick.github.io/Bandage/
+# Then open the file: spades_output/assembly_graph.fastg
