@@ -12,6 +12,7 @@ conda activate assembly_tutorial
 wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR135/059/SRR13554759/SRR13554759_1.fastq.gz
 wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR135/059/SRR13554759/SRR13554759_2.fastq.gz
 
+
 # ==============================
 # 3. Quality check with FastQC
 # ==============================
@@ -24,16 +25,44 @@ fastqc raw_reads/*.fastq.gz -o fastqc_results/
 trimming data
 fastp -i SRR13554759_1.fastq.gz -I SRR13554759_2.fastq.gz -o trim/SRR13554759_1.trim.fastq.gz -O trim/SRR13554759_2.trim.fastq.gz
 fastp -i SRR13554759_1.fastq.gz -I SRR13554759_2.fastq.gz -o trim/SRR13554759_1.trim.fastq.gz -O trim/SRR13554759_2.trim.fastq.gz
+#!/bin/bash
+
+# Make output folder for trimmed reads
+mkdir -p trim
+
+# List of sample names (without _1/_2 suffix)
+SAMPLES=(
+  "SRR13554759"
+  # Add more sample names here if needed, e.g.:
+  # "SRRxxxxxxx"
+  # "SRRyyyyyyy"
+)
+
+# Loop through each sample and run fastp
+for SAMPLE in "${SAMPLES[@]}"; do
+  echo "Processing $SAMPLE ..."
+
+  fastp \
+    -i "${SAMPLE}_1.fastq.gz" \
+    -I "${SAMPLE}_2.fastq.gz" \
+    -o "trim/${SAMPLE}_1.trim.fastq.gz" \
+    -O "trim/${SAMPLE}_2.trim.fastq.gz" \
+    --html "trim/${SAMPLE}_fastp.html" \
+    --json "trim/${SAMPLE}_fastp.json"
+
+  echo "Finished $SAMPLE ✅"
+done
 
 # ==============================
 # 4. Run SPAdes genome assembler
 # ==============================
+cd de_nove
+
 spades.py \
-  -1 SRR13554759_1.fastq.gz \
-  -2 SRR13554759_2.fastq.gz \
-  -o spades_output \
-  -t 4 -m 8
-# (-t = number of threads, -m = memory in GB; adjust depending on your machine)
+  -1 raw_reads/trim/SRR13554759_1.trim.fastq.gz \
+  -2 raw_reads/trim/SRR13554759_2.trim.fastq.gz \
+  -k 41,85 \
+  -o assembly
 
 # ==============================
 # 5. Evaluate assembly with Quast
@@ -46,3 +75,7 @@ quast spades_output/contigs.fasta -o quast_report
 # Bandage cannot be installed via terminal (needs GUI).
 # Download here: https://rrwick.github.io/Bandage/
 # Then open the file: spades_output/assembly_graph.fastg
+quast.py assembly/contigs.fasta -o quast_report
+download report
+scp -r sararomi@135.181.163.242:/home/sararomi/habiba/de_novo/quast_report ~/Downloads/
+
