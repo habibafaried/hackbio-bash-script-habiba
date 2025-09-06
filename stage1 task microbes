@@ -370,6 +370,46 @@ done
     }' "$f"
   done
 ) > virulence/summary_key_virulence.tsv
+awk 'BEGIN{FS=OFS="\t"}
+FNR==1{next}  # skip per-file headers if present
+!/^#/{
+  # sample name from file path: virulence/SAMPLE_vfdb.tab
+  s=FILENAME; sub(/^.*\//,"",s); sub(/_vfdb\.tab$/,"",s)
+  gene=$6; cov=$10+0; id=$12+0
+  ok = (cov>=90 && id>=90) ? 1 : 0   # keep only strong hits
+  if(ok){ hits[s, gene]=1 }
+  samples[s]=1
+  genes["prfA"]=1; genes["hly"]=1; genes["plcA"]=1; genes["plcB"]=1; genes["actA"]=1
+  genes["inlA"]=1; genes["inlB"]=1
+  if(gene ~ /^lls/){ genes[gene]=1 }   # collect lls* seen in any sample
+}
+END{
+  # Build ordered gene list: core → internalins → all lls*
+  core="prfA hly plcA plcB actA inlA inlB"
+  split(core, C)
+  # gather lls* keys
+  for(g in genes){ if(g ~ /^lls/) lls[g]=1 }
+  # header
+  printf "sample"
+  for(i in C) printf "\t%s", C[i]
+  for(g in lls) printf "\t%s", g
+  printf "\tLIPI1\tLIPI3\n"
+
+  # stable order of samples
+  PROCINFO["sorted_in"]="@ind_str_asc"
+  for(s in samples){
+    lipi1c=0; lipi3c=0
+    printf "%s", s
+    for(i in C){
+      g=C[i]; v=(hits[s,g]?1:0); printf "\t%d", v; if(g~/^(prfA|hly|plcA|plcB|actA)$/&&v) lipi1c++
+    }
+    for(g in lls){ v=(hits[s,g]?1:0); printf "\t%d", v; if(v) lipi3c++ }
+    printf "\t%s\t%s\n", (lipi1c>=4?"yes":"no"), (lipi3c>=2?"yes":"no")
+  }
+}' virulence/*_vfdb.tab > virulence/virulence_matrix.tsv
+
+column -s $'\t' -t virulence/virulence_matrix.tsv | less -S
+
 # =========================
 # VFDB VIRULENCE SUMMARY
 # =========================
