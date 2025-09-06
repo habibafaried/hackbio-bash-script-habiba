@@ -228,3 +228,217 @@ for R1 in "$TRIM_DIR"/*_1.trim.fastq.gz; do
     -o "$OUTDIR" \
     > "$OUTDIR/${STEM}.spades.log" 2>&1
 done
+#Assessing the Assembly with Quast.Py to chooae the best sequancing
+# collect all contigs paths
+FILES=(assembly/*/contigs.fasta)
+# stop if none
+[ -f "${FILES[0]}" ] || { echo "No contigs.fasta under assembly/"; exit 1; }
+
+# make comma-separated labels from parent directory names
+LABELS=$(for f in "${FILES[@]}"; do basename "$(dirname "$f")"; done | paste -sd, -)
+
+quast.py "${FILES[@]}" -o quast_all -t 8 -l "$LABELS"
+
+echo "Done. See quast_all/report.html (and summary.tsv) for the comparison."
+# You’ll get an HTML report inside quast_report/. Open it in your browser. The main metrics you should care about
+# results show that Flowchart checks (summarized)
+#Very high # contigs? No (all well under 500).
+#N50 large? Yes for all (≥ ~53–159 kb), with SRR27013336 the strongest and SRR27013338 borderline.
+#Total length ~expected? Yes (L. monocytogenes ~2.9–3.1 Mb). SRR27013338 is on the low side but still plausible.
+#Coverage even? (Not shown by QUAST) → map reads back and inspect coverage to be sure.
+
+
+# After SPAdes finished and i done quast we choose SRR27013336, the main outputs were written to:
+#   assembly_group/contigs.fasta           # assembled contigs
+#   assembly_group/scaffolds.fasta         # scaffolds (if produced)
+#   assembly_group/assembly_graph.fastg    # assembly graph (for Bandage)
+#   assembly_group/contigs.paths           # contig→graph mapping
+
+# 2) I visualized the SPAdes assembly graph with Bandage.
+#    (GUI) File → Load graph → assembly_group/assembly_graph.fastg
+#    In Bandage I turned on node labels and depth, and used "Find circular sequences"
+#    to spot circular components that look like plasmids.
+
+# (Optional CLI helper) I also exported a snapshot of the graph:
+Bandage image assembly_group/assembly_graph.fastg graph_overview.png --drawdepth --labels
+
+# 3) I exported the circular/plasmid-like component(s) from Bandage to FASTA.
+#    (GUI) Select the circular component → Extract → Save as plasmid1.fa
+#    (CLI example if node IDs are known; put node IDs in nodes.txt, one per line)
+# Bandage extract assembly_group/assembly_graph.fastg nodes.txt plasmid1.fa
+
+# 4) I identified the organism by BLASTing the putative plasmid contig.
+#    I used NCBI BLASTn (web) by pasting plasmid1.fa into the nt database.
+#    The top hits came back as Listeria monocytogenes with ~100% identity and 100% query cover
+#    (e.g., accession CP096157.1).
+#
+# (Local BLAST+ example, if available)
+# blastn -query plasmid1.fa -db nt \
+#   -outfmt "6 qseqid sacc ssciname pident qcovs evalue bitscore length" \
+#   -max_target_seqs 10 -evalue 1e-20 > plasmid1.blast.tsv
+
+# 5) Conclusion:
+#    Based on the Bandage-captured circular contig(s) and BLAST matches (100% identity, full coverage),
+#    I identified the organism as Listeria monocytogenes.
+ #Assessing the Assembly with Quast.Py
+# collect all contigs paths
+FILES=(assembly/*/contigs.fasta)
+# stop if none
+[ -f "${FILES[0]}" ] || { echo "No contigs.fasta under assembly/"; exit 1; }
+
+# make comma-separated labels from parent directory names
+LABELS=$(for f in "${FILES[@]}"; do basename "$(dirname "$f")"; done | paste -sd, -)
+
+quast.py "${FILES[@]}" -o quast_all -t 8 -l "$LABELS"
+
+echo "Done. See quast_all/report.html (and summary.tsv) for the comparison."
+# You’ll get an HTML report inside quast_report/. Open it in your browser. The main metrics you should care about:
+# for AMR 
+nano amr.sh
+#!/usr/bin/env bash
+# Run this from the directory that CONTAINS "assembly/"
+# First time only (once per machine): abricate --setupdb && abricate --list
+
+set -euo pipefail
+mkdir -p AMR
+
+# Optional: choose a DB by setting DB (e.g. resfinder, card). Leave empty for default DB.
+DB="${DB:-}"
+
+for d in assembly/*/; do
+  [[ -d "$d" ]] || continue
+  sample="$(basename "$d")"
+
+  # Find contigs file (common names from SPAdes)
+  contigs="$(find "$d" -maxdepth 2 -type f \( -name 'contigs.fasta' -o -name 'contigs.fa' \) -print -quit)"
+
+  if [[ -z "$contigs" ]]; then
+    echo "Skipping $sample (no contigs.fasta/.fa found)"
+    continue
+  fi
+
+  out="AMR/${sample}${DB:+.${DB}}.tab"
+  echo ">> ABRicate: $sample -> $out"
+
+  if [[ -n "$DB" ]]; then
+    abricate --db "$DB" "$contigs" > "$out"
+  else
+    abricate "$contigs" > "$out"
+  fi
+done
+
+# Make a summary across all samples
+if compgen -G "AMR/*.tab" > /dev/null; then
+  abricate --summary AMR/*.tab > AMR/abricate_summary.tsv
+  echo "Summary written: AMR/abricate_summary.tsv"
+else
+  echo "No AMR/*.tab files produced—nothing to summarize."
+fi
+bash amr.sh
+#after that i got tab and download it what i found that
+# ABRicate results (database: NCBI)
+
+# Hit 1
+#   Gene: lmo0919_fam
+#   Product: lincomycin resistance ABC-F type ribosomal protection protein (ABC-F RPP)
+#   Resistance class: LINCOSAMIDE
+#   %COVERAGE: 100.00
+#   %IDENTITY: 94.66
+
+# Hit 2
+#   Gene: fosX
+#   Product: fosfomycin resistance thiol transferase FosX
+#   Resistance class: FOSFOMYCIN
+#   %COVERAGE: 100.00
+#   %IDENTITY: 100.00
+#Detect “toxin”/hyper-virulence signatures from your assemblies
+mkdir -p virulence
+for d in assembly/*/; do
+  contigs="$d/contigs.fasta"
+  [ -f "$contigs" ] || continue
+  sample=$(basename "$d")
+  abricate --db vfdb "$contigs" > "virulence/${sample}_vfdb.tab"
+done
+
+# Pull out the “big hitters”
+( echo -e "sample\tgene\tproduct\t%identity\t%coverage"
+  for f in virulence/*_vfdb.tab; do
+    sample=$(basename "$f" _vfdb.tab)
+    awk -v s="$sample" 'BEGIN{FS=OFS="\t"} !/^#/{
+      if($6 ~ /(^hly$|^prfA$|^plcA$|^plcB$|^actA$|^inlA$|^inlB$|^lls)/)
+        print s,$6,$14,$12,$10
+    }' "$f"
+  done
+) > virulence/summary_key_virulence.tsv
+# =========================
+# VFDB VIRULENCE SUMMARY
+# =========================
+# Genes of interest:
+# - LIPI-1 (core virulence island): prfA, hly (LLO), plcA, plcB, actA
+# - LIPI-3 (Listeriolysin S island): llsA, llsB, llsD, llsG, llsH, llsX, llsY, llsP
+# - Invasion: inlA, inlB
+
+# SRR27013310:
+#   LIPI-1: prfA/plcA/hly/actA/plcB ~100% identity → PRESENT
+#   LIPI-3: llsA/B/D/G/H/X/Y/P ~100% identity → PRESENT (strong)
+#   Internalins: inlA 99.63%, inlB 99.89% → PRESENT (high)
+
+# SRR27013312:
+#   LIPI-1: prfA/plcA/hly/actA/plcB ~100% → PRESENT
+#   LIPI-3: llsA/B/D/G/H/X ~100% → PRESENT (strong)
+#   Internalins: inlA 99.63% → PRESENT (high)
+
+# SRR27013313:
+#   LIPI-1: prfA/plcA/hly/actA/plcB ~100% → PRESENT
+#   LIPI-3: llsA/B/D/G/H/X ~100%, llsY 88.78% → PRESENT (one gene more divergent)
+#   Internalins: inlA 99.63% (high), inlB 87.85% (lower → check for divergence/partial)
+
+# SRR27013321:
+#   LIPI-1: prfA/plcA/hly/actA/plcB ~100% → PRESENT
+#   LIPI-3: llsA/D/G/X/Y/P 100%; llsH 98.27%; llsB 82.19% → PRESENT (llsB divergent)
+#   Internalins: inlA 99.63%, inlB 99.89% → PRESENT (high)
+
+# SRR27013329:
+#   LIPI-1: prfA/plcA/hly/actA/plcB ~100% → PRESENT
+#   LIPI-3: llsA/B/D/G/H/X ~100% → PRESENT (strong)
+#   Internalins: inlA 99.63%, inlB 99.89% → PRESENT (high)
+
+# SRR27013330:
+#   LIPI-1: prfA/plcA/hly/actA/plcB ~100% → PRESENT
+#   LIPI-3: llsA/D/G/H/X/Y 100%; llsB 82.19% → PRESENT (llsB divergent)
+#   Internalins: inlA 99.63%, inlB 99.89% → PRESENT (high)
+
+# SRR27013336:
+#   LIPI-1: prfA/plcA/hly/actA/plcB ~100% → PRESENT
+#   LIPI-3: llsA/B/D/G/H/X/Y 100% → PRESENT (strong)
+#   Internalins: inlA 99.63%, inlB 99.89% → PRESENT (high)
+
+# SRR27013338:
+#   LIPI-1: prfA/plcA/hly/actA/plcB ~100% → PRESENT
+#   LIPI-3: llsA 100%, llsB 95.66%, plus others high → PRESENT (strong)
+#   Internalins: inlA 99.63%, inlB 99.89% → PRESENT (high)
+
+# -------------------------
+# INTERPRETATION / TAKEAWAYS
+# -------------------------
+# 1) All listed isolates carry LIPI-1 (prfA–hly–plcA–plcB–actA), including the pore-forming toxin LLO (hly).
+# 2) LIPI-3 (Listeriolysin S island) is present in all shown isolates; some samples have a more divergent llsB/llsY.
+#    LIPI-3 encodes Listeriolysin S, a cytolysin linked to enhanced virulence and gut translocation → plausible toxin signal.
+# 3) Internalins inlA/inlB are present at high identity in most isolates; SRR27013313 shows lower inlB identity (87.85%) → check for truncation or recombination.
+#
+# QC / NEXT CHECKS:
+# - Verify coverage across the LIPI-3 operon (uniform depth across llsA–llsP); low %ID genes (e.g., llsB/llsY) may be allelic variants or fragmented contigs.
+# - Confirm inlA is intact (look for premature stop/pfs); intact inlA supports higher invasiveness.
+# - Inspect assemblies around LIPI-3 in Bandage; confirm the operon is contiguous and chromosomal (or plasmid if present).
+
+# -------------------------
+# THERAPEUTIC CONTEXT (GENOTYPE-AWARE)
+# -------------------------
+# - From AMR screening: fosX → avoid fosfomycin; lmo0919_fam → lincosamides (e.g., clindamycin) ineffective.
+# - Standard for invasive listeriosis: ampicillin (or penicillin G) ± gentamicin synergy.
+# - β-lactam allergy: trimethoprim–sulfamethoxazole is a common alternative.
+# - Avoid cephalosporins (intrinsic resistance). Always interpret alongside phenotypic AST and clinical guidance.
+
+# TL;DR
+# These outbreak isolates show a complete LIPI-1 and (mostly) complete LIPI-3 island, highlighting both LLO and Listeriolysin S as key toxins.
+# That genomic profile is consistent with a hypervirulent L. monocytogenes lineage; manage clinically with standard Listeria-active agents and avoid drugs predicted ineffective by AMR genotypes.
