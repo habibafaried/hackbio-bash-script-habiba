@@ -1,0 +1,787 @@
+# =============================================================================
+# PROJECT: Listeria outbreak genome analysis
+### [MODULE 00] Environment setup
+#  first Create and activate a conda environment to use tools without any confusion then check tools versions
+conda create -n finaltask -c bioconda -c conda-forge spades quast fastqc abricate -y
+conda activate finaltask
+mkdir task
+mkdir raw_reads && cd raw_reads
+
+
+### [MODULE 01] Data download (unchanged commands)
+# 2. Download paired-end dataset using curl or wget
+# using nano to write the code and modify it easily
+nano rawreads.sh
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/016/SRR27013316/SRR27013316_1.fastq.gz -o SRR27013316_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/016/SRR27013316/SRR27013316_2.fastq.gz -o SRR27013316_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/015/SRR27013315/SRR27013315_1.fastq.gz -o SRR27013315_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/015/SRR27013315/SRR27013315_2.fastq.gz -o SRR27013315_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/014/SRR27013314/SRR27013314_1.fastq.gz -o SRR27013314_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/014/SRR27013314/SRR27013314_2.fastq.gz -o SRR27013314_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/013/SRR27013313/SRR27013313_1.fastq.gz -o SRR27013313_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/013/SRR27013313/SRR27013313_2.fastq.gz -o SRR27013313_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/012/SRR27013312/SRR27013312_1.fastq.gz -o SRR27013312_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/012/SRR27013312/SRR27013312_2.fastq.gz -o SRR27013312_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/011/SRR27013311/SRR27013311_1.fastq.gz -o SRR27013311_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/011/SRR27013311/SRR27013311_2.fastq.gz -o SRR27013311_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/042/SRR27013342/SRR27013342_1.fastq.gz -o SRR27013342_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/042/SRR27013342/SRR27013342_2.fastq.gz -o SRR27013342_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/040/SRR27013340/SRR27013340_1.fastq.gz -o SRR27013340_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/040/SRR27013340/SRR27013340_2.fastq.gz -o SRR27013340_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/039/SRR27013339/SRR27013339_1.fastq.gz -o SRR27013339_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/039/SRR27013339/SRR27013339_2.fastq.gz -o SRR27013339_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/038/SRR27013338/SRR27013338_1.fastq.gz -o SRR27013338_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/038/SRR27013338/SRR27013338_2.fastq.gz -o SRR27013338_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/043/SRR27013343/SRR27013343_1.fastq.gz -o SRR27013343_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/043/SRR27013343/SRR27013343_2.fastq.gz -o SRR27013343_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/041/SRR27013341/SRR27013341_1.fastq.gz -o SRR27013341_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/041/SRR27013341/SRR27013341_2.fastq.gz -o SRR27013341_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/037/SRR27013337/SRR27013337_1.fastq.gz -o SRR27013337_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/037/SRR27013337/SRR27013337_2.fastq.gz -o SRR27013337_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/035/SRR27013335/SRR27013335_1.fastq.gz -o SRR27013335_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/035/SRR27013335/SRR27013335_2.fastq.gz -o SRR27013335_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/036/SRR27013336/SRR27013336_1.fastq.gz -o SRR27013336_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/036/SRR27013336/SRR27013336_2.fastq.gz -o SRR27013336_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/034/SRR27013334/SRR27013334_1.fastq.gz -o SRR27013334_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/034/SRR27013334/SRR27013334_2.fastq.gz -o SRR27013334_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/033/SRR27013333/SRR27013333_1.fastq.gz -o SRR27013333_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/033/SRR27013333/SRR27013333_2.fastq.gz -o SRR27013333_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/032/SRR27013332/SRR27013332_1.fastq.gz -o SRR27013332_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/032/SRR27013332/SRR27013332_2.fastq.gz -o SRR27013332_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/031/SRR27013331/SRR27013331_1.fastq.gz -o SRR27013331_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/031/SRR27013331/SRR27013331_2.fastq.gz -o SRR27013331_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/030/SRR27013330/SRR27013330_1.fastq.gz -o SRR27013330_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/030/SRR27013330/SRR27013330_2.fastq.gz -o SRR27013330_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/029/SRR27013329/SRR27013329_1.fastq.gz -o SRR27013329_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/029/SRR27013329/SRR27013329_2.fastq.gz -o SRR27013329_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/028/SRR27013328/SRR27013328_1.fastq.gz -o SRR27013328_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/028/SRR27013328/SRR27013328_2.fastq.gz -o SRR27013328_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/027/SRR27013327/SRR27013327_1.fastq.gz -o SRR27013327_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/027/SRR27013327/SRR27013327_2.fastq.gz -o SRR27013327_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/026/SRR27013326/SRR27013326_1.fastq.gz -o SRR27013326_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/026/SRR27013326/SRR27013326_2.fastq.gz -o SRR27013326_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/025/SRR27013325/SRR27013325_1.fastq.gz -o SRR27013325_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/025/SRR27013325/SRR27013325_2.fastq.gz -o SRR27013325_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/023/SRR27013323/SRR27013323_1.fastq.gz -o SRR27013323_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/023/SRR27013323/SRR27013323_2.fastq.gz -o SRR27013323_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/024/SRR27013324/SRR27013324_1.fastq.gz -o SRR27013324_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/024/SRR27013324/SRR27013324_2.fastq.gz -o SRR27013324_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/022/SRR27013322/SRR27013322_1.fastq.gz -o SRR27013322_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/022/SRR27013322/SRR27013322_2.fastq.gz -o SRR27013322_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/021/SRR27013321/SRR27013321_1.fastq.gz -o SRR27013321_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/021/SRR27013321/SRR27013321_2.fastq.gz -o SRR27013321_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/020/SRR27013320/SRR27013320_1.fastq.gz -o SRR27013320_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/020/SRR27013320/SRR27013320_2.fastq.gz -o SRR27013320_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/019/SRR27013319/SRR27013319_1.fastq.gz -o SRR27013319_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/019/SRR27013319/SRR27013319_2.fastq.gz -o SRR27013319_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/018/SRR27013318/SRR27013318_1.fastq.gz -o SRR27013318_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/018/SRR27013318/SRR27013318_2.fastq.gz -o SRR27013318_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/009/SRR27013309/SRR27013309_1.fastq.gz -o SRR27013309_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/009/SRR27013309/SRR27013309_2.fastq.gz -o SRR27013309_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/010/SRR27013310/SRR27013310_1.fastq.gz -o SRR27013310_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/010/SRR27013310/SRR27013310_2.fastq.gz -o SRR27013310_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/017/SRR27013317/SRR27013317_1.fastq.gz -o SRR27013317_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/017/SRR27013317/SRR27013317_2.fastq.gz -o SRR27013317_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/008/SRR27013308/SRR27013308_1.fastq.gz -o SRR27013308_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/008/SRR27013308/SRR27013308_2.fastq.gz -o SRR27013308_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/007/SRR27013307/SRR27013307_1.fastq.gz -o SRR27013307_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/007/SRR27013307/SRR27013307_2.fastq.gz -o SRR27013307_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/005/SRR27013305/SRR27013305_1.fastq.gz -o SRR27013305_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/005/SRR27013305/SRR27013305_2.fastq.gz -o SRR27013305_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/003/SRR27013303/SRR27013303_1.fastq.gz -o SRR27013303_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/003/SRR27013303/SRR27013303_2.fastq.gz -o SRR27013303_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/006/SRR27013306/SRR27013306_1.fastq.gz -o SRR27013306_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/006/SRR27013306/SRR27013306_2.fastq.gz -o SRR27013306_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/004/SRR27013304/SRR27013304_1.fastq.gz -o SRR27013304_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/004/SRR27013304/SRR27013304_2.fastq.gz -o SRR27013304_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/002/SRR27013302/SRR27013302_1.fastq.gz -o SRR27013302_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/002/SRR27013302/SRR27013302_2.fastq.gz -o SRR27013302_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/001/SRR27013301/SRR27013301_1.fastq.gz -o SRR27013301_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/001/SRR27013301/SRR27013301_2.fastq.gz -o SRR27013301_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/000/SRR27013300/SRR27013300_1.fastq.gz -o SRR27013300_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/000/SRR27013300/SRR27013300_2.fastq.gz -o SRR27013300_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/097/SRR27013297/SRR27013297_1.fastq.gz -o SRR27013297_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/097/SRR27013297/SRR27013297_2.fastq.gz -o SRR27013297_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/098/SRR27013298/SRR27013298_1.fastq.gz -o SRR27013298_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/098/SRR27013298/SRR27013298_2.fastq.gz -o SRR27013298_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/099/SRR27013299/SRR27013299_1.fastq.gz -o SRR27013299_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/099/SRR27013299/SRR27013299_2.fastq.gz -o SRR27013299_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/096/SRR27013296/SRR27013296_1.fastq.gz -o SRR27013296_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/096/SRR27013296/SRR27013296_2.fastq.gz -o SRR27013296_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/095/SRR27013295/SRR27013295_1.fastq.gz -o SRR27013295_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/095/SRR27013295/SRR27013295_2.fastq.gz -o SRR27013295_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/094/SRR27013294/SRR27013294_1.fastq.gz -o SRR27013294_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/094/SRR27013294/SRR27013294_2.fastq.gz -o SRR27013294_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/093/SRR27013293/SRR27013293_1.fastq.gz -o SRR27013293_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/093/SRR27013293/SRR27013293_2.fastq.gz -o SRR27013293_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/090/SRR27013290/SRR27013290_1.fastq.gz -o SRR27013290_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/090/SRR27013290/SRR27013290_2.fastq.gz -o SRR27013290_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/091/SRR27013291/SRR27013291_1.fastq.gz -o SRR27013291_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
+curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/091/SRR27013291/SRR27013291_2.fastq.gz -o SRR27013291_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
+bash rawreads.sh
+# samples have _1/_2; count pairs by counting R1 files and R2 files one for forward and reverse read
+# to make sure ihave download all data and to count sample i will use maxdepth
+find . -maxdepth 1 -type f -name '*_1.fastq.gz' | wc -l
+
+
+#===================================================
+### [MODULE 02] Quality control 
+# 4. Quality check with FastQC and generate report 
+#runs fastqc and writes HTML/zip reprts into fastqc_results
+fastqc -version
+mkdir fastqc_results
+fastqc raw_reads/*.fastq.gz -o fastqc_results/
+#prepare a trimming output we will make a folder for trimming seq
+mkdir -p trim
+SAMPLES=(
+  "SRR27013290_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013291_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013292_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013293_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013294_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013295_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013296_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013297_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013298_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013299_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013300_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013301_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013302_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013303_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013304_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013305_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013306_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013307_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013308_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013309_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013310_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013311_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013312_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013313_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013314_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013315_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013316_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013317_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013318_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013319_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013320_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013321_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013322_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013323_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013324_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013325_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013326_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013327_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013328_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013329_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013330_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013331_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013332_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013333_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013334_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013335_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013336_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013337_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013338_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013339_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013340_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013341_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013342_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+"SRR27013343_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
+)
+### [MODULE 02] Quality control 
+# 3. Quality check with FastQC
+4. trimming of samples using fastp
+fastp -version
+# Loop through each sample and run fastp if it work it will print finished samples
+for SAMPLE in "${SAMPLES[@]}"; do
+  echo "Processing $SAMPLE ..."
+
+  fastp \
+    -i "${SAMPLE}_1.fastq.gz" \           #-i for input file R1(forwardread)
+    -I "${SAMPLE}_2.fastq.gz" \            #-I for input file R2(reversed read)
+    -o "trim/${SAMPLE}_1.trim.fastq.gz" \       #o- for output trimmed file R1
+    -O "trim/${SAMPLE}_2.trim.fastq.gz" \            #O- for output trimmed file R2
+    --html "trim/${SAMPLE}_fastp.html" \
+    --json "trim/${SAMPLE}_fastp.json"
+
+  echo "Finished $SAMPLE ✅"
+done
+cp trim.sh raw_reads
+# to be used in raw_reads and file will be generated inside the raw_reads remove it to finaltask
+cd raw_reads
+bash trim.sh
+cp -R raw_reads/trim 
+
+#===========================================================
+### [MODULE 04] Assembly
+# 4. Run SPAdes on all trimmed pairs to make de_novo assembly
+SPAdes -version
+# --------------------------------
+set -u  # (optional) treat unset vars as errors
+
+TRIM_DIR="raw_reads/trim"   
+# change to "." if the files are in the current folder
+OUT_BASE="assembly"         
+# all per-sample outputs will go under this folder
+
+mkdir -p "$OUT_BASE"
+
+for R1 in "$TRIM_DIR"/*_1.trim.fastq.gz; do
+  # skip if no R1 files matched
+  [[ -e "$R1" ]] || { echo "No *_1.trim.fastq.gz files found in $TRIM_DIR"; break; }
+
+  STEM="$(basename "$R1" "_1.trim.fastq.gz")"
+  R2="$TRIM_DIR/${STEM}_2.trim.fastq.gz"
+
+  # make sure the mate exists
+  if [[ ! -f "$R2" ]]; then
+    echo "Skipping $STEM (missing R2: $R2)"
+    continue
+  fi
+
+  OUTDIR="$OUT_BASE/$STEM"
+  mkdir -p "$OUTDIR"
+
+  echo "Assembling $STEM -> $OUTDIR"
+  spades.py \
+    -1 "$R1" \
+    -2 "$R2" \
+    -k 41,85 \
+    -o "$OUTDIR" \
+    > "$OUTDIR/${STEM}.spades.log" 2>&1
+done
+#=================================================
+## [MODULE 05] Assembly assessment
+#5. Assessing the Assembly with Quast.Py to chooae the best sequancing
+quast -version
+# collect all contigs paths
+FILES=(assembly/*/contigs.fasta)
+# stop if none
+[ -f "${FILES[0]}" ] || { echo "No contigs.fasta under assembly/"; exit 1; }
+
+# make comma-separated labels from parent directory names
+LABELS=$(for f in "${FILES[@]}"; do basename "$(dirname "$f")"; done | paste -sd, -)
+
+quast.py "${FILES[@]}" -o quast_all -t 8 -l "$LABELS"
+
+echo "Done. See quast_all/report.html (and summary.tsv) for the comparison."
+# You’ll get an HTML report inside quast_report/. Open it in your browser. The main metrics you should care about
+# results show that Flowchart checks (summarized)
+#Very high # contigs? No (all well under 500).
+#N50 large? Yes for all (≥ ~53–159 kb), with SRR27013336 the strongest and SRR27013338 borderline.
+#Total length ~expected? Yes (L. monocytogenes ~2.9–3.1 Mb). SRR27013338 is on the low side but still plausible.
+#Coverage even? (Not shown by QUAST) → map reads back and inspect coverage to be sure.
+#======================================
+### [MODULE 06] Graph visualization
+# 6. using bandage to visualize
+# After SPAdes finished and i done quast we choose SRR27013336, the main outputs were written to:
+#   assembly_group/contigs.fasta           # assembled contigs
+#   assembly_group/scaffolds.fasta         # scaffolds (if produced)
+#   assembly_group/assembly_graph.fastg    # assembly graph (for Bandage)
+#   assembly_group/contigs.paths           # contig→graph mapping
+
+# 2) I visualized the SPAdes assembly graph with Bandage.
+#    (GUI) File → Load graph → assembly_group/assembly_graph.fastg
+#    In Bandage I turned on node labels and depth, and used "Find circular sequences"
+#    to spot circular components that look like plasmids.
+
+# (Optional CLI helper) I also exported a snapshot of the graph:
+Bandage image assembly_group/assembly_graph.fastg graph_overview.png --drawdepth --labels
+
+# 3) I exported the circular/plasmid-like component(s) from Bandage to FASTA.
+#    (GUI) Select the circular component → Extract → Save as plasmid1.fa
+#    (CLI example if node IDs are known; put node IDs in nodes.txt, one per line)
+# Bandage extract assembly_group/assembly_graph.fastg nodes.txt plasmid1.fa
+
+# 4) I identified the organism by BLASTing the putative plasmid contig.
+#    I used NCBI BLASTn (web) by pasting plasmid1.fa into the nt database.
+#    The top hits came back as Listeria monocytogenes with ~100% identity and 100% query cover
+#    (e.g., accession CP096157.1).
+#
+# (Local BLAST+ example, if available)
+# blastn -query plasmid1.fa -db nt \
+#   -outfmt "6 qseqid sacc ssciname pident qcovs evalue bitscore length" \
+#   -max_target_seqs 10 -evalue 1e-20 > plasmid1.blast.tsv
+
+# 5) Conclusion:
+#    Based on the Bandage-captured circular contig(s) and BLAST matches (100% identity, full coverage),
+#    I identified the organism as Listeria monocytogenes.
+# ============================
+### [MODULE 07] AMR profiling
+# test the anti microbial resistance 
+ABRicate -version
+nano amr.sh
+#!/usr/bin/env bash
+# Run this from the directory that CONTAINS "assembly/"
+# First time only (once per machine): abricate --setupdb && abricate --list
+
+set -euo pipefail
+mkdir -p AMR
+
+# Optional: choose a DB by setting DB (e.g. resfinder, card). Leave empty for default DB.
+DB="${DB:-}"
+
+for d in assembly/*/; do
+  [[ -d "$d" ]] || continue
+  sample="$(basename "$d")"
+
+  # Find contigs file (common names from SPAdes)
+  contigs="$(find "$d" -maxdepth 2 -type f \( -name 'contigs.fasta' -o -name 'contigs.fa' \) -print -quit)"
+
+  if [[ -z "$contigs" ]]; then
+    echo "Skipping $sample (no contigs.fasta/.fa found)"
+    continue
+  fi
+
+  out="AMR/${sample}${DB:+.${DB}}.tab"
+  echo ">> ABRicate: $sample -> $out"
+
+  if [[ -n "$DB" ]]; then
+    abricate --db "$DB" "$contigs" > "$out"
+  else
+    abricate "$contigs" > "$out"
+  fi
+done
+
+# Make a summary across all samples
+if compgen -G "AMR/*.tab" > /dev/null; then
+  abricate --summary AMR/*.tab > AMR/abricate_summary.tsv
+  echo "Summary written: AMR/abricate_summary.tsv"
+else
+  echo "No AMR/*.tab files produced—nothing to summarize."
+fi
+bash amr.sh
+#after that i got tab and download it what i found that
+# ABRicate results (database: NCBI)
+
+# Hit 1
+#   Gene: lmo0919_fam
+#   Product: lincomycin resistance ABC-F type ribosomal protection protein (ABC-F RPP)
+#   Resistance class: LINCOSAMIDE
+#   %COVERAGE: 100.00
+#   %IDENTITY: 94.66
+
+# Hit 2
+#   Gene: fosX
+#   Product: fosfomycin resistance thiol transferase FosX
+#   Resistance class: FOSFOMYCIN
+#   %COVERAGE: 100.00
+#   %IDENTITY: 100.00
+#==========================================
+
+### [MODULE 08] Virulence/toxin profiling 
+#8. Detect “toxin”/hyper-virulence signatures from your assemblies
+mkdir -p virulence
+for d in assembly/*/; do
+  contigs="$d/contigs.fasta"
+  [ -f "$contigs" ] || continue
+  sample=$(basename "$d")
+  abricate --db vfdb "$contigs" > "virulence/${sample}_vfdb.tab"
+done
+
+# Pull out the “big hitters”
+( echo -e "sample\tgene\tproduct\t%identity\t%coverage"
+  for f in virulence/*_vfdb.tab; do
+    sample=$(basename "$f" _vfdb.tab)
+    awk -v s="$sample" 'BEGIN{FS=OFS="\t"} !/^#/{
+      if($6 ~ /(^hly$|^prfA$|^plcA$|^plcB$|^actA$|^inlA$|^inlB$|^lls)/)
+        print s,$6,$14,$12,$10
+    }' "$f"
+  done
+) > virulence/summary_key_virulence.tsv
+awk 'BEGIN{FS=OFS="\t"}
+FNR==1{next}  # skip per-file headers if present
+!/^#/{
+  # sample name from file path: virulence/SAMPLE_vfdb.tab
+  s=FILENAME; sub(/^.*\//,"",s); sub(/_vfdb\.tab$/,"",s)
+  gene=$6; cov=$10+0; id=$12+0
+  ok = (cov>=90 && id>=90) ? 1 : 0   # keep only strong hits
+  if(ok){ hits[s, gene]=1 }
+  samples[s]=1
+  genes["prfA"]=1; genes["hly"]=1; genes["plcA"]=1; genes["plcB"]=1; genes["actA"]=1
+  genes["inlA"]=1; genes["inlB"]=1
+  if(gene ~ /^lls/){ genes[gene]=1 }   # collect lls* seen in any sample
+}
+END{
+  # Build ordered gene list: core → internalins → all lls*
+  core="prfA hly plcA plcB actA inlA inlB"
+  split(core, C)
+  # gather lls* keys
+  for(g in genes){ if(g ~ /^lls/) lls[g]=1 }
+  # header
+  printf "sample"
+  for(i in C) printf "\t%s", C[i]
+  for(g in lls) printf "\t%s", g
+  printf "\tLIPI1\tLIPI3\n"
+
+  # stable order of samples
+  PROCINFO["sorted_in"]="@ind_str_asc"
+  for(s in samples){
+    lipi1c=0; lipi3c=0
+    printf "%s", s
+    for(i in C){
+      g=C[i]; v=(hits[s,g]?1:0); printf "\t%d", v; if(g~/^(prfA|hly|plcA|plcB|actA)$/&&v) lipi1c++
+    }
+    for(g in lls){ v=(hits[s,g]?1:0); printf "\t%d", v; if(v) lipi3c++ }
+    printf "\t%s\t%s\n", (lipi1c>=4?"yes":"no"), (lipi3c>=2?"yes":"no")
+  }
+}' virulence/*_vfdb.tab > virulence/virulence_matrix.tsv
+
+column -s $'\t' -t virulence/virulence_matrix.tsv | less -S
+
+==========================================================
+## Summarize key virulence genes
+
+( echo -e "sample\tgene\tproduct\t%identity\t%coverage"
+  for f in virulence/*_vfdb.tab; do
+    sample=$(basename "$f" _vfdb.tab)
+    awk -v s="$sample" 'BEGIN{FS=OFS="\t"} !/^#/{
+      if($6 ~ /(^hly$|^prfA$|^plcA$|^plcB$|^actA$|^inlA$|^inlB$|^lls)/)
+        print s,$6,$14,$12,$10
+    }' "$f"
+  done
+) > virulence/summary_key_virulence.tsv
+
+For each VFDB table, AWK filters columns to keep just the “big hitters”:
+
+$6 gene, $14 product, $12 %identity, $10 %coverage
+
+Keeps LIPI-1 core (prfA hly plcA plcB actA), internalins (inlA inlB), and LIPI-3 (lls*).
+===========================================================
+## Build a presence/absence matrix with quality thresholds
+
+awk 'BEGIN{FS=OFS="\t"}
+FNR==1{next}
+!/^#/{
+  s=FILENAME; sub(/^.*\//,"",s); sub(/_vfdb\.tab$/,"",s)
+  gene=$6; cov=$10+0; id=$12+0
+  ok = (cov>=90 && id>=90) ? 1 : 0   # keep only strong hits
+  if(ok){ hits[s, gene]=1 }
+  samples[s]=1
+  genes["prfA"]=1; genes["hly"]=1; genes["plcA"]=1; genes["plcB"]=1; genes["actA"]=1
+  genes["inlA"]=1; genes["inlB"]=1
+  if(gene ~ /^lls/){ genes[gene]=1 }
+}
+END{
+  core="prfA hly plcA plcB actA inlA inlB"
+  split(core, C)
+  for(g in genes){ if(g ~ /^lls/) lls[g]=1 }
+  printf "sample"; for(i in C) printf "\t%s", C[i]; for(g in lls) printf "\t%s", g; printf "\tLIPI1\tLIPI3\n"
+  PROCINFO["sorted_in"]="@ind_str_asc"
+  for(s in samples){
+    lipi1c=0; lipi3c=0
+    printf "%s", s
+    for(i in C){ g=C[i]; v=(hits[s,g]?1:0); printf "\t%d", v; if(g~/^(prfA|hly|plcA|plcB|actA)$/&&v) lipi1c++ }
+    for(g in lls){ v=(hits[s,g]?1:0); printf "\t%d", v; if(v) lipi3c++ }
+    printf "\t%s\t%s\n", (lipi1c>=4?"yes":"no"), (lipi3c>=2?"yes":"no")
+  }
+}' virulence/*_vfdb.tab > virulence/virulence_matrix.tsv
+
+#Treats only high-confidence hits (≥90% identity & coverage).
+#Builds a table with 1/0 per gene and two summary flags:
+#LIPI1 = yes if at least 4 of 5 core genes present (strict core: prfA, hly, plcA, plcB, actA)
+#LIPI3 = yes if ≥2 lls* genes present (adjust threshold as desired)
+
+#Pretty-print the matrix
+
+column -s $'\t' -t virulence/virulence_matrix.tsv | less -S
+
+#Formats the TSV into aligned columns; less -S lets you scroll horizontally.
+
+
+
+# =========================
+# VFDB VIRULENCE SUMMARY
+# =========================
+# Genes of interest:
+# - LIPI-1 (core virulence island): prfA, hly (LLO), plcA, plcB, actA
+# - LIPI-3 (Listeriolysin S island): llsA, llsB, llsD, llsG, llsH, llsX, llsY, llsP
+# - Invasion: inlA, inlB
+
+# SRR27013310:
+#   LIPI-1: prfA/plcA/hly/actA/plcB ~100% identity → PRESENT
+#   LIPI-3: llsA/B/D/G/H/X/Y/P ~100% identity → PRESENT (strong)
+#   Internalins: inlA 99.63%, inlB 99.89% → PRESENT (high)
+
+# SRR27013312:
+#   LIPI-1: prfA/plcA/hly/actA/plcB ~100% → PRESENT
+#   LIPI-3: llsA/B/D/G/H/X ~100% → PRESENT (strong)
+#   Internalins: inlA 99.63% → PRESENT (high)
+
+# SRR27013313:
+#   LIPI-1: prfA/plcA/hly/actA/plcB ~100% → PRESENT
+#   LIPI-3: llsA/B/D/G/H/X ~100%, llsY 88.78% → PRESENT (one gene more divergent)
+#   Internalins: inlA 99.63% (high), inlB 87.85% (lower → check for divergence/partial)
+
+# SRR27013321:
+#   LIPI-1: prfA/plcA/hly/actA/plcB ~100% → PRESENT
+#   LIPI-3: llsA/D/G/X/Y/P 100%; llsH 98.27%; llsB 82.19% → PRESENT (llsB divergent)
+#   Internalins: inlA 99.63%, inlB 99.89% → PRESENT (high)
+
+# SRR27013329:
+#   LIPI-1: prfA/plcA/hly/actA/plcB ~100% → PRESENT
+#   LIPI-3: llsA/B/D/G/H/X ~100% → PRESENT (strong)
+#   Internalins: inlA 99.63%, inlB 99.89% → PRESENT (high)
+
+# SRR27013330:
+#   LIPI-1: prfA/plcA/hly/actA/plcB ~100% → PRESENT
+#   LIPI-3: llsA/D/G/H/X/Y 100%; llsB 82.19% → PRESENT (llsB divergent)
+#   Internalins: inlA 99.63%, inlB 99.89% → PRESENT (high)
+
+# SRR27013336:
+#   LIPI-1: prfA/plcA/hly/actA/plcB ~100% → PRESENT
+#   LIPI-3: llsA/B/D/G/H/X/Y 100% → PRESENT (strong)
+#   Internalins: inlA 99.63%, inlB 99.89% → PRESENT (high)
+
+# SRR27013338:
+#   LIPI-1: prfA/plcA/hly/actA/plcB ~100% → PRESENT
+#   LIPI-3: llsA 100%, llsB 95.66%, plus others high → PRESENT (strong)
+#   Internalins: inlA 99.63%, inlB 99.89% → PRESENT (high)
+
+
+# -------------------------
+# INTERPRETATION / TAKEAWAYS### 
+# -------------------------
+# 1) All listed isolates carry LIPI-1 (prfA–hly–plcA–plcB–actA), including the pore-forming toxin LLO (hly).
+# 2) LIPI-3 (Listeriolysin S island) is present in all shown isolates; some samples have a more divergent llsB/llsY.
+#    LIPI-3 encodes Listeriolysin S, a cytolysin linked to enhanced virulence and gut translocation → plausible toxin signal.
+# 3) Internalins inlA/inlB are present at high identity in most isolates; SRR27013313 shows lower inlB identity (87.85%) → check for truncation or recombination.
+#
+# QC / NEXT CHECKS:
+# - Verify coverage across the LIPI-3 operon (uniform depth across llsA–llsP); low %ID genes (e.g., llsB/llsY) may be allelic variants or fragmented contigs.
+# - Confirm inlA is intact (look for premature stop/pfs); intact inlA supports higher invasiveness.
+# - Inspect assemblies around LIPI-3 in Bandage; confirm the operon is contiguous and chromosomal (or plasmid if present).
+
+# -------------------------
+# THERAPEUTIC CONTEXT (GENOTYPE-AWARE)
+# -------------------------
+# - From AMR screening: fosX → avoid fosfomycin; lmo0919_fam → lincosamides (e.g., clindamycin) ineffective.
+# - Standard for invasive listeriosis: ampicillin (or penicillin G) ± gentamicin synergy.
+# - β-lactam allergy: trimethoprim–sulfamethoxazole is a common alternative.
+# - Avoid cephalosporins (intrinsic resistance). Always interpret alongside phenotypic AST and clinical guidance.
+
+# TL;DR
+# These outbreak isolates show a complete LIPI-1 and (mostly) complete LIPI-3 island, highlighting both LLO and Listeriolysin S as key toxins.
+# That genomic profile is consistent with a hypervirulent L. monocytogenes lineage; manage clinically with standard Listeria-active agents and av
+references for antibiotices suggestions 
+1.https://www.frontiersin.org/journals/drug-discovery/articles/10.3389/fddsv.2024.1385460/full
+2.https://pmc.ncbi.nlm.nih.gov/articles/PMC10101360/
+
+==========================================================================================
+#final validations 
+#!/usr/bin/env bash
+# =============================================================================
+# TEST-ONLY VALIDATION: AMR + VIRULENCE
+# Confirms ABRicate hits using read-mapping coverage & produces PASS/FAIL tables.
+# Requirements in env: minimap2 samtools bedtools abricate seqkit (optional).
+#
+# Inputs expected (already produced by your pipeline):
+# raw_reads/trim/<S>_1.trim.fastq.gz, <S>_2.trim.fastq.gz
+# assembly/<S>/contigs.fasta
+# AMR/<S>*.tab (from abricate)
+# virulence/<S>_vfdb.tab (from abricate --db vfdb)
+#
+# Outputs (under tests/):
+# tests/amr_calls.tsv
+# tests/virulence_calls.tsv
+# tests/AMR_PASS.tsv (only confirmed)
+# tests/VIRULENCE_PASS.tsv (only confirmed)
+# tests/amr_virulence_summary.md (readable summary for your report)
+# =============================================================================
+set -euo pipefail
+IFS=$'\n\t'
+
+# ---------- thresholds (tweak as needed) ----------
+# Abricate match quality
+MIN_ID=90 # %identity ≥ 90
+MIN_COV=90 # %coverage ≥ 90
+# Mapping confirmation
+MIN_BREADTH=0.90 # ≥ 90% of locus covered by reads
+MIN_DEPTH=10 # ≥ 10x mean depth over locus
+
+# ---------- helpers ----------
+need() { command -v "$1" >/dev/null 2>&1 || { echo "Missing: $1"; exit 1; }; }
+breadth_and_depth() {
+  # Args: BAM bedfile -> prints "<breadth>\t<mean_depth>"
+  local BAM="$1"; local BED="$2"
+  # breadth: fraction of positions with depth ≥1 ; mean depth across all positions in BED
+  # bedtools coverage -hist gives per-depth hist; use -a BED -b BAM
+  local tmp=$(mktemp)
+  bedtools coverage -hist -a "$BED" -b "$BAM" > "$tmp"
+  # lines with "all" summarize by feature; use per-base histogram depth
+  # compute: covered_bases / total_bases ; mean depth = sum(depth*count)/total_bases
+  awk '
+    $1=="all" && $2=="all" && $3=="all" && $4=="all" { next } # skip any global line (paranoia)
+    /^all\t/ && $5 ~ /^[0-9]+(\.[0-9]+)?$/ {
+      depth=$5; count=$7;
+      total+=count;
+      if(depth>=1) covered+=count;
+      sum+=depth*count;
+    }
+    END{
+      if(total>0){
+        print covered/total "\t" sum/total
+      } else {
+        print "0\t0"
+      }
+    }' "$tmp"
+  rm -f "$tmp"
+}
+
+mkdir -p tests
+
+# sanity
+need minimap2; need samtools; need bedtools
+need abricate
+# seqkit improves contig-length checks (optional)
+if command -v seqkit >/dev/null 2>&1; then HAVE_SEQKIT=1; else HAVE_SEQKIT=0; fi
+
+# gather samples from assemblies
+mapfile -t SAMPLES < <(find assembly -mindepth 1 -maxdepth 1 -type d -printf "%f\n" | sort)
+
+# where we store per-sample BAMs
+mkdir -p tests/bam
+
+# ---------- map reads to each sample’s contigs (reused for both AMR & virulence) ----------
+for S in "${SAMPLES[@]}"; do
+  CONTIGS="assembly/${S}/contigs.fasta"
+  R1="raw_reads/trim/${S}_1.trim.fastq.gz"
+  R2="raw_reads/trim/${S}_2.trim.fastq.gz"
+  BAM="tests/bam/${S}.bam"
+
+  if [[ -f "$CONTIGS" && -f "$R1" && -f "$R2" ]]; then
+    if [[ ! -f "$BAM" ]]; then
+      echo "# mapping $S ..."
+      samtools faidx "$CONTIGS" || true
+      minimap2 -t 4 -ax sr "$CONTIGS" "$R1" "$R2" \
+        | samtools sort -@4 -o "$BAM" -
+      samtools index "$BAM"
+    else
+      echo "# reuse BAM for $S"
+    fi
+    # optional: contig lengths
+    if [[ $HAVE_SEQKIT -eq 1 ]]; then
+      seqkit fx2tab -nl "$CONTIGS" > "tests/bam/${S}.contiglen.tsv" || true
+    fi
+  else
+    echo "# skip $S (missing contigs or trimmed reads)"
+  fi
+done
+
+# ---------- function to make BED from abricate tsv ----------
+make_bed_from_abricate(){
+  local TSV="$1"; local BED_OUT="$2"
+  awk -v FS="\t" -v OFS="\t" -v MIN_ID="$MIN_ID" -v MIN_COV="$MIN_COV" '
+    /^#/ {next}
+    NR==1{
+      for(i=1;i<=NF;i++){
+        if($i ~ /%COVERAGE/i) covc=i
+        if($i ~ /%IDENTITY/i) idc=i
+        if($i ~ /SEQID|SEQUENCE|CONTIG/i) contc=i
+        if($i ~ /^START$/i) sc=i
+        if($i ~ /^END$/i) ec=i
+        if($i ~ /GENE/i) genec=i
+        if($i ~ /PRODUCT/i) prodc=i
+        if($i ~ /ACCESSION/i) accc=i
+        if($i ~ /DATABASE/i) dbc=i
+      }
+      if(!covc) covc=10; if(!idc) idc=12; if(!contc) contc=1; if(!sc) sc=2; if(!ec) ec=3; if(!genec) genec=6
+      if(!prodc) prodc=14; if(!accc) accc=11; if(!dbc) dbc=9
+      next
+    }
+    {
+      cov=$covc+0; id=$idc+0; s=$sc; e=$ec; if(s>e){t=s;s=e;e=t}
+      if(cov>=MIN_COV && id>=MIN_ID){
+        print $contc, s-1, e, $genec "|" $prodc "|" $accc "|" $dbc "|" cov "|" id
+      }
+    }' "$TSV" > "$BED_OUT"
+}
+
+# ---------- harvest AMR & virulence calls; confirm with coverage ----------
+echo -e "sample\tgene\tdb\taccession\tproduct\tpct_id\tpct_cov\tbreadth\tmean_depth\tstatus" > tests/amr_calls.tsv
+echo -e "sample\tgene\tdb\taccession\tproduct\tpct_id\tpct_cov\tbreadth\tmean_depth\tstatus" > tests/virulence_calls.tsv
+
+confirm_calls(){
+  local KIND="$1" # AMR or VIR
+  local TSVGLOB="$2"
+  local OUTFILE="$3"
+
+  shopt -s nullglob
+  for TSV in $TSVGLOB; do
+    SAMPLE=$(basename "$TSV")
+    SAMPLE="${SAMPLE%%_*}" # AMR/<S>.tab -> <S> ; virulence/<S>_vfdb.tab -> <S>
+    SAMPLE="${SAMPLE%%.*}"
+    BAM="tests/bam/${SAMPLE}.bam"
+    [[ -f "$BAM" ]] || { echo "# no BAM for $SAMPLE; skipping $KIND validation"; continue; }
+
+    BED="tests/${SAMPLE}.${KIND}.bed"
+    make_bed_from_abricate "$TSV" "$BED" || true
+    [[ -s "$BED" ]] || { echo "# no high-quality ${KIND} hits in $TSV"; continue; }
+
+    # compute breadth & depth per interval
+    # expand info columns from BED name field
+    while IFS=$'\t' read -r contig start end info; do
+      gene=$(awk -F'|' '{print $1}' <<<"$info")
+      product=$(awk -F'|' '{print $2}' <<<"$info")
+      acc=$(awk -F'|' '{print $3}' <<<"$info")
+      db=$(awk -F'|' '{print $4}' <<<"$info")
+      pcov=$(awk -F'|' '{print $5}' <<<"$info")
+      pid=$(awk -F'|' '{print $6}' <<<"$info")
+
+      onebed=$(mktemp)
+      printf "%s\t%s\t%s\t%s\n" "$contig" "$start" "$end" "$gene" > "$onebed"
+      read breadth depth < <(breadth_and_depth "$BAM" "$onebed")
+      rm -f "$onebed"
+
+      status="FAIL"
+      awk -v b="$breadth" -v d="$depth" -v bb="$MIN_BREADTH" -v dd="$MIN_DEPTH" \
+        'BEGIN{exit (b>=bb && d>=dd)?0:1}' && status="PASS" || status="FAIL"
+
+      printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%.3f\t%.2f\t%s\n" \
+        "$SAMPLE" "$gene" "$db" "$acc" "$product" "$pid" "$pcov" "$breadth" "$depth" "$status" \
+        >> "$OUTFILE"
+    done < "$BED"
+  done
+  shopt -u nullglob
+}
+
+# Confirm AMR
+confirm_calls "AMR" "AMR/*.tab" "tests/amr_calls.tsv"
+# Confirm Virulence
+confirm_calls "VIRULENCE" "virulence/*_vfdb.tab" "tests/virulence_calls.tsv"
+
+# Filter to PASS-only tables
+awk -F'\t' 'NR==1 || $10=="PASS"' tests/amr_calls.tsv > tests/AMR_PASS.tsv
+awk -F'\t' 'NR==1 || $10=="PASS"' tests/virulence_calls.tsv > tests/VIRULENCE_PASS.tsv
+
+# Simple human-readable summary (Markdown)
+{
+  echo "# AMR & Virulence Validation Summary"
+  echo
+  echo "## Thresholds"
+  echo "- ABRicate: %identity ≥ ${MIN_ID}, %coverage ≥ ${MIN_COV}"
+  echo "- Mapping: breadth ≥ ${MIN_BREADTH}, mean depth ≥ ${MIN_DEPTH}x"
+  echo
+  echo "## AMR (PASS only)"
+  echo
+  awk -F'\t' 'NR==1{next} $10=="PASS"{print "- **"$1"**: "$2" ("$4") — "$5" ["$6"% id, "$7"% cov; breadth "~$8", depth "~$9"x]"}' tests/amr_calls.tsv | sort
+  echo
+  echo "## Virulence (PASS only)"
+  echo
+  awk -F'\t' 'NR==1{next} $10=="PASS"{print "- **"$1"**: "$2" — "$5" ["$6"% id, "$7"% cov; breadth "~$8", depth "~$9"x]"}' tests/virulence_calls.tsv | sort
+  echo
+  echo "> Note: Genes that did not meet ABRicate quality or mapping coverage are excluded (FAIL)."
+} > tests/amr_virulence_summary.md
+
+echo "Done. See:"
+echo " - tests/amr_calls.tsv"
+echo " - tests/virulence_calls.tsv"
+echo " - tests/AMR_PASS.tsv"
+echo " - tests/VIRULENCE_PASS.tsv"
+echo " - tests/amr_virulence_summary.md"
+
+##links
+github link: https://github.com/habibafaried/hackbio-bash-script-habiba/blob/main/stage1%20task%20microbes
+
+https://www.linkedin.com/posts/habiba-faried-a62bb11b0_hackbio-bash-linux-activity-7366582020027703296-s0Vk?utm_source=share&utm_medium=member_android&rcm=ACoAADFMi6oBwjx2cbYE0OvQ1vQcA7FnBUzmvb
