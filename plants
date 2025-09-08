@@ -1,0 +1,264 @@
+#Pear Genomics Mini-Project (WGS): SNPs, SVs & Domestication Signals
+0) Conda environment
+mamba create -n pears -y -c bioconda -c conda-forge \
+  sra-tools pigz fastp seqkit \
+  mash minimap2 bwa-mem2 samtools bcftools bedtools \
+  gatk4 picard delly manta \
+  sniffles cuteSV mosdepth qualimap \
+  survivor \
+  snpeff snpsift annovar \
+  csvtk parallel jq
+conda activate pears
+#==============================================================================
+model 1 check Qc of samples
+mkdir -p  raw_reads data/fastq
+cd raw_reads
+nano rawdatas
+ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR713/003/SRR7135493/SRR7135493_1.fastq.gz
+ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR713/003/SRR7135493/SRR7135493_2.fastq.gz
+ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR713/001/SRR7135521/SRR7135521_1.fastq.gz
+ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR713/001/SRR7135521/SRR7135521_2.fastq.gz
+ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR327/071/SRR32764071/SRR32764071_1.fastq.gz
+ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR327/071/SRR32764071/SRR32764071_2.fastq.gz
+ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR327/072/SRR32764072/SRR32764072_1.fastq.gz
+ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR327/072/SRR32764072/SRR32764072_2.fastq.gz
+bash 
+cd data/fastq
+# Asian
+prefetch SRR32764071 SRR32764072
+fasterq-dump --split-files --gzip SRR32764071 SRR32764072
+# European
+prefetch SRR7135493 SRR7135521
+fasterq-dump --split-files --gzip SRR7135493 SRR7135521
+cd ../../
+fastqc raw_reads/ *.fastq.gz -o Qc_reports
+Get references (FASTA + GFF3)
+#Put one Asian and one European reference in ref/. If you have T2T DS & T2T MRB, prefer those; else DS v1.1 and BartlettDHv2.0.
+mkdir -p ref
+# Place files as:
+# ref/Asian.fa  ref/Asian.gff3
+# ref/Euro.fa   ref/Euro.gff3
+samtools faidx ref/Asian.fa
+samtools faidx ref/Euro.fa
+bwa-mem2 index ref/Asian.fa
+bwa-mem2 index ref/Euro.fa
+#2) Quick species check (sample QC / identification)
+#We’ll confirm Asian vs European origin using Mash distances to the two references.
+
+mash sketch -o ref/Asian.ref.msh ref/Asian.fa
+mash sketch -o ref/Euro.ref.msh  ref/Euro.fa
+
+mkdir -p qc/species
+for s in SRR32764071 SRR32764072 SRR7135493 SRR7135521; do
+  mash sketch -r -m 2 -o qc/species/${s}.msh data/fastq/${s}_1.fastq.gz data/fastq/${s}_2.fastq.gz
+  echo -e "=== $s vs Asian ==="
+  mash dist ref/Asian.ref.msh qc/species/${s}.msh | sort -k3,3n | head -1
+  echo -e "=== $s vs Euro ==="
+  mash dist ref/Euro.ref.msh  qc/species/${s}.msh | sort -k3,3n | head -1
+done
+#==================================================================================
+#modele 3 Read QC & trimming
+mkdir -p qc/fastp
+for s in SRR32764071 SRR32764072 SRR7135493 SRR7135521; do
+  fastp \
+    -i data/fastq/${s}_1.fastq.gz -I data/fastq/${s}_2.fastq.gz \
+    -o data/fastq/${s}_1.trim.fastq.gz -O data/fastq/${s}_2.trim.fastq.gz \
+    --detect_adapter_for_pe --length_required 50 \
+    --html qc/fastp/${s}.html --json qc/fastp/${s}.json
+
+done
+#=================================================================================
+#4) Mapping strategy
+#Map Asian samples to Asian reference, European samples to European reference (avoids cross-species bias).
+
+mkdir -p map/Asian map/Euro
+
+# Asian
+for s in SRR32764071 SRR32764072; do
+  bwa-mem2 mem -t 8 ref/Asian.fa \
+    data/fastq/${s}_1.trim.fastq.gz data/fastq/${s}_2.trim.fastq.gz \
+  | samtools sort -@8 -o map/Asian/${s}.bam -
+  samtools index map/Asian/${s}.bam
+  mosdepth -t 8 -n map/Asian/${s} map/Asian/${s}.bam
+done
+
+# European
+for s in SRR7135493 SRR7135521; do
+  bwa-mem2 mem -t 8 ref/Euro.fa \
+    data/fastq/${s}_1.trim.fastq.gz data/fastq/${s}_2.trim.fastq.gz \
+  | samtools sort -@8 -o map/Euro/${s}.bam -
+  samtools index map/Euro/${s}.bam
+  mosdepth -t 8 -n map/Euro/${s} map/Euro/${s}.bam
+done
+========================================================
+# model 5 
+#5) SNP/indel calling (GATK Best Practices, joint calling)
+mkdir -p vc/gatk
+# Mark duplicates + BQSR (if you have known sites; if not, skip BQSR)
+for bam in map/Asian/*.bam map/Euro/*.bam; do
+  s=$(basename $bam .bam)
+  gatk MarkDuplicates -I $bam -O vc/gatk/${s}.md.bam -M vc/gatk/${s}.metrics.txt --CREATE_INDEX true
+done
+
+# Per-sample gVCFs (ploidy=2)
+for bam in vc/gatk/*.md.bam; do
+  s=$(basename $bam .md.bam)
+  refid=$( [[ "$s" =~ SRR3276407|SRR32764072 ]] && echo Asian || echo Euro )
+  gatk HaplotypeCaller -R ref/${refid}.fa -I $bam -O vc/gatk/${s}.g.vcf.gz -ERC GVCF
+done
+
+# Combine & Genotype by species, then merge
+gatk CombineGVCFs -R ref/Asian.fa -V vc/gatk/SRR32764071.g.vcf.gz -V vc/gatk/SRR32764072.g.vcf.gz -O vc/gatk/Asian.g.vcf.gz
+gatk GenotypeGVCFs -R ref/Asian.fa -V vc/gatk/Asian.g.vcf.gz -O vc/gatk/Asian.raw.vcf.gz
+
+gatk CombineGVCFs -R ref/Euro.fa -V vc/gatk/SRR7135493.g.vcf.gz -V vc/gatk/SRR7135521.g.vcf.gz -O vc/gatk/Euro.g.vcf.gz
+gatk GenotypeGVCFs -R ref/Euro.fa -V vc/gatk/Euro.g.vcf.gz -O vc/gatk/Euro.raw.vcf.gz
+
+# Hard filtering (since plant truth sets are limited)
+gatk VariantFiltration -R ref/Asian.fa -V vc/gatk/Asian.raw.vcf.gz \
+  --filter-name "QD2" --filter-expression "QD < 2.0" \
+  --filter-name "MQ40" --filter-expression "MQ < 40.0" \
+  --filter-name "FS60" --filter-expression "FS > 60.0" \
+  --filter-name "SOR3" --filter-expression "SOR > 3.0" \
+  -O vc/gatk/Asian.filt.vcf.gz
+
+gatk VariantFiltration -R ref/Euro.fa -V vc/gatk/Euro.raw.vcf.gz \
+  --filter-name "QD2" --filter-expression "QD < 2.0" \
+  --filter-name "MQ40" --filter-expression "MQ < 40.0" \
+  --filter-name "FS60" --filter-expression "FS > 60.0" \
+  --filter-name "SOR3" --filter-expression "SOR > 3.0" \
+  -O vc/gatk/Euro.filt.vcf.gz
+=========================================================================
+#model 6) SV calling (short-read friendly) + merging
+We run Manta and DELLY, then merge with SURVIVOR for consensus SVs (DEL/DUP/INV/INS).
+
+mkdir -p sv/manta sv/delly sv/merged
+
+# Run Manta per sample (genome-wide)
+for bam in map/Asian/*.bam map/Euro/*.bam; do
+  s=$(basename $bam .bam)
+  refid=$( [[ "$s" =~ SRR3276407|SRR32764072 ]] && echo Asian || echo Euro )
+  configManta.py --bam $bam --referenceFasta ref/${refid}.fa --runDir sv/manta/${s}
+  python sv/manta/${s}/runWorkflow.py -j 8
+  cp sv/manta/${s}/results/variants/diploidSV.vcf.gz sv/manta/${s}.manta.vcf.gz || true
+done
+
+# Run DELLY per sample
+for bam in map/Asian/*.bam map/Euro/*.bam; do
+  s=$(basename $bam .bam)
+  refid=$( [[ "$s" =~ SRR3276407|SRR32764072 ]] && echo Asian || echo Euro )
+  delly call -g ref/${refid}.fa -o sv/delly/${s}.bcf $bam
+  bcftools view sv/delly/${s}.bcf -Oz -o sv/delly/${s}.delly.vcf.gz
+done
+
+# Merge callers per sample (keep SVs supported by ≥1 caller; you can require ≥2 for higher precision)
+for s in SRR32764071 SRR32764072 SRR7135493 SRR7135521; do
+  ls sv/manta/${s}.manta.vcf.gz sv/delly/${s}.delly.vcf.gz > sv/merged/${s}.list
+  SURVIVOR merge sv/merged/${s}.list 1000 1 1 0 0 50 sv/merged/${s}.sv.vcf
+done
+If any sample is long-read, swap in Sniffles2/cuteSV on the BAM/CRAM, then merge with SURVIVOR.
+
+===============================================================================================
+model 7) Build a SnpEff database from your GFF3/FASTA
+# Prepare snpEff data dir (once)
+SNPEFF=$(dirname $(dirname $(which snpEff)))/share/snpeff-*/data
+mkdir -p $SNPEFF/AsianPyrus $SNPEFF/EuroPyrus
+# Asian
+cp ref/Asian.fa  $SNPEFF/AsianPyrus/sequences.fa
+cp ref/Asian.gff3 $SNPEFF/AsianPyrus/genes.gff
+# Euro
+cp ref/Euro.fa  $SNPEFF/EuroPyrus/sequences.fa
+cp ref/Euro.gff3 $SNPEFF/EuroPyrus/genes.gff
+# Build
+snpEff build -gff3 -v AsianPyrus
+snpEff build -gff3 -v EuroPyrus
+#7.2 Annotate variants
+snpEff -v AsianPyrus vc/gatk/Asian.filt.vcf.gz | bgzip > vc/gatk/Asian.ann.vcf.gz; tabix -p vcf vc/gatk/Asian.ann.vcf.gz
+snpEff -v EuroPyrus  vc/gatk/Euro.filt.vcf.gz  | bgzip > vc/gatk/Euro.ann.vcf.gz;  tabix -p vcf vc/gatk/Euro.ann.vcf.gz
+
+# SVs: basic gene overlaps
+for s in SRR32764071 SRR32764072 SRR7135493 SRR7135521; do
+  refid=$( [[ "$s" =~ SRR3276407|SRR32764072 ]] && echo Asian || echo Euro )
+  bedtools intersect -wa -a sv/merged/${s}.sv.vcf -b ref/${refid}.gff3 > sv/merged/${s}.sv.geneOverlaps.vcf
+done
+#7.3 Nutritional-trait gene panels (examples)
+#Create a small BED of a priori candidate genes (sugar metabolism/transport, cell wall & lignin for stone cells, size QTL candidates). Examples:
+
+Sweetness/sugars: SWEET transporters, SUT/SUC, SPS, SUSY, sorbitol metabolism (S6PDH, SDH, SOT), hexokinase, fructokinase.
+Stone cells (lignin/SCW): PAL, C4H, 4CL, HCT, C3H, CCR, CAD, LAC, PRX, CesA, COBL, MYB46/58, NAC (SND/VND).
+Fruit size/texture: EXPANSIN (EXP), XTH, ARF/AUX-IAA, CYCLIN D3, BRI1/BR signaling.
+Put coordinates into panels/Asian_traits.bed and panels/Euro_traits.bed (convert gene IDs to intervals via GFF).
+
+mkdir -p panels results
+
+# Intersect SNPs/indels with panels
+for grp in Asian Euro; do
+  bcftools view vc/gatk/${grp}.ann.vcf.gz -Oz -o results/${grp}.ann.vcf.gz
+  tabix -p vcf results/${grp}.ann.vcf.gz
+  bedtools intersect -header -a results/${grp}.ann.vcf.gz -b panels/${grp}_traits.bed > results/${grp}.traits.vcf
+done
+
+# Intersect SVs with panels
+for s in SRR32764071 SRR32764072 SRR7135493 SRR7135521; do
+  refid=$( [[ "$s" =~ SRR3276407|SRR32764072 ]] && echo Asian || echo Euro )
+  bedtools intersect -wa -a sv/merged/${s}.sv.vcf -b panels/${refid}_traits.bed > results/${s}.sv_traits.vcf
+done
+==========================================================
+model 8  Cohort comparison & domestication hints (2 vs 2 caution)
+#With n=2 per group, we only do exploratory signals (report as preliminary):
+
+#ΔAF & Δπ (difference in allele frequency and nucleotide diversity by windows)
+#Windowed FST (informal with such small n)
+Burden differences (count of hits in trait panels and SV overlaps)
+# Make a multi-sample VCF by *lifting* onto a common coordinate set is tricky across references.
+# Instead, compute within-species signals, then compare gene lists/summaries qualitatively.
+
+# Within each group: π by windows
+for grp in Asian Euro; do
+  bcftools stats -s - results/${grp}.ann.vcf.gz > results/${grp}.bcfstats.txt
+  # optional: pixy/angsd for π/TajimaD if you want more robust stats.
+done
+
+# Per-sample burden in panels (counts of MODERATE/HIGH impact)
+for grp in Asian Euro; do
+  bcftools query -f '%CHROM\t%POS\t%ANN\n' results/${grp}.traits.vcf \
+  | awk -F'|' '{eff[$2]++} END{for(e in eff) print e,eff[e]}' | sort > results/${grp}.impact_counts.txt
+done
+
+# SV burdens in panels
+for s in SRR32764071 SRR32764072 SRR7135493 SRR7135521; do
+  grep -E "SVTYPE=DEL|SVTYPE=DUP|SVTYPE=INV|SVTYPE=INS" results/${s}.sv_traits.vcf \
+  | awk -F'\t' 'BEGIN{del=dup=inv=ins=0}
+      {if($8~"SVTYPE=DEL")del++;
+       else if($8~"SVTYPE=DUP")dup++;
+       else if($8~"SVTYPE=INV")inv++;
+       else if($8~"SVTYPE=INS")ins++}
+    END{print "'$s'",del,dup,inv,ins}' OFS='\t' \
+  >> results/sv_burdens.tsv
+done
+=======================================================================================
+#model 9
+#Validation tests (read-support & AMR/virulence analogue adapted to traits)
+# Confirm SNP/indel candidates in trait genes have good local coverage (breadth>=0.9, mean depth>=10x).
+# Generate BEDs from panels; then compute coverage per locus:
+for s in SRR32764071 SRR32764072; do
+  bedtools coverage -a panels/Asian_traits.bed -b map/Asian/${s}.bam -mean -hist > results/${s}.Asian_traits.coverage.txt
+done
+for s in SRR7135493 SRR7135521; do
+  bedtools coverage -a panels/Euro_traits.bed -b map/Euro/${s}.bam -mean -hist > results/${s}.Euro_traits.coverage.txt
+done
+===================================================================
+#model 10 10) Minimal outputs to submit
+qc/fastp/*.html (basic QC)
+results/Asian.ann.vcf.gz, results/Euro.ann.vcf.gz (filtered & annotated SNP/indel sets)
+sv/merged/*.sv.vcf (per-sample consensus SVs) and results/*sv_traits.vcf
+results/*traits.vcf (SNP/indel hits within trait panels)
+results/sv_burdens.tsv, results/*impact_counts.txt
+#top candidate genes affecting sweetness (e.g., SWEET, S6PDH/SDH variants), stone cells (e.g., LAC/PRX, PAL/CCR/CAD, CesA), and size (e.g., EXP, XTH, auxin/BR genes),
+===========================================================================
+#modal 11 Interpreting likely trait shapers (what to look for)
+#Sweetness: nonsynonymous or regulatory variants in SWEETs/SUTs, S6PDH/SDH (sorbitol pathway), and SPS/SUSY; CNVs affecting transporter clusters.
+#Stone cells: variants in lignin biosynthesis (e.g., PAL→C4H→4CL→HCT→C3H→CCR→CAD), laccases (LAC), peroxidases (PRX); duplications/deletions in these clusters correlate with sclereid formation.
+#Size/texture: EXPANSIN/XTH coding/regulatory changes or auxin/BR signaling components; SVs upstream (enhancers) can modulate expression and cell expansion.
+
+================================================
