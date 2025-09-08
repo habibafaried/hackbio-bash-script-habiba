@@ -122,7 +122,7 @@ gatk BuildBamIndex -I ~/habiba/humantask/marked/patientX_marked.bam
 # Create a directory for BQSR output
 mkdir -p ~/habiba/humantask/BQSR
 # Run BaseRecalibrator to adjust the base quality scores
-gatk BaseRecalibrator -I ~/habiba/humantask/marked/patientX_marked.bam -R /data/ref/Homo_sapiens_assembly38.fasta --known-sites /data/ref/Homo_sapiens_assembly38.known_indels.vcf.gz -O ~/habiba/humantask/BQSR/patientX_recal.table
+gatk BaseRecalibrator -I ~/habiba/humantask/marked/patientX_marked.bam -R /data/ref/Homo_sapiens_assembly38.fasta --known-sites ~/habiba/humantask/reference/Homo_sapiens_assembly38.known_indels.vcf.gz -O ~/habiba/humantask/BQSR/patientX_recal.table
 # Apply the recalibrated scores to the BAM file
 gatk ApplyBQSR -I ~/habiba/humantask/marked/patientX_marked.bam -R /data/ref/Homo_sapiens_assembly38.fasta --bqsr-recal-file ~/habiba/humantask/BQSR/patientX_recal.table -O ~/habiba/humantask/BQSR/patientX_recal.bam
   #Explanation:
@@ -135,7 +135,10 @@ gatk ApplyBQSR -I ~/habiba/humantask/marked/patientX_marked.bam -R /data/ref/Hom
 # Create a directory for VCF files (variant call format)
 mkdir -p ~/habiba/humantask/VCF
 # Run HaplotypeCaller to call variants and output in GVCF format
-gatk HaplotypeCaller -I ~/habiba/humantask/BQSR/patientX_recal.bam -R /data/ref/Homo_sapiens_assembly38.fasta -O ~/habiba/humantask/VCF/patientX.g.vcf.gz -ERC GVCF
+gatk HaplotypeCaller -I ~/habiba/humantask/BQSR/patientX_recal.bam \
+  -R /home/sararomi/reference/Homo_sapiens_assembly38.fasta \
+  -O ~/habiba/humantask/VCF/patientX.g.vcf.gz \
+  -ERC GVCF
 #Explanation:
 #gatk HaplotypeCaller: Identifies SNPs and indels from the recalibrated BAM file and outputs them in GVCF format, which is optimal for multi-sample variant calling.
 #Output: The GVCF file (patientX.g.vcf.gz) containing variant calls.
@@ -147,4 +150,27 @@ vep -i ~/habiba/humantask/VCF/patientX.g.vcf.gz --cache --dir_cache /path/to/vep
 #Explanation:
 #vep: Variant Effect Predictor annotates the VCF file by providing details about the functional consequences of each variant.
 #Output: Annotated VCF file (patientX_annotated.vcf).
+# or Your final VCF can  be uploaded to Variant Effect Predictor: https://www.ensembl.org/Multi/Tools/VEP?db=core
+# searched for different genes 
+#1. rs34126315
+#Gene: HBB (Hemoglobin subunit beta)
+#Chromosome: 11
+#Location: chr11:5,225,469 (hg38)
+#Mutation: A → T (in the 6th codon)
+#Amino Acid Change: Glu6Val (Glutamic acid to Valine)
+#Clinical Significance: This is the canonical sickle cell mutation (also known as HbS). This mutation causes the red blood cells to become sickle-shaped, leading to sickle cell disease. It is a pathogenic variant.
+#2. rs34135787
+#Gene: HBB (Hemoglobin subunit beta)
+#Chromosome: 11
+#Location: chr11:5,225,531 (hg38)
+#Mutation: C → T (in the 6th codon)
+#Amino Acid Change: Glu6Lys (Glutamic acid to Lysine)
+#Clinical Significance: This mutation is another form of the sickle cell mutation, where the mutation causes HbS formation, leading to sickle cell disease. This is also a pathogenic variant.
+#rs33941849 - Key Information
+#Gene: HBB (Hemoglobin subunit beta)
+#Chromosome: 11
+#Location: chr11:5,225,518 (hg38)
+#Mutation: A → T
+#Amino Acid Change: Glu6Val (Glutamic acid to Valine)
+#Clinical Significance: This variant is also known as HbS and is associated with sickle cell disease (SCD). This mutation causes a glutamic acid to valine substitution at position 6 of the hemoglobin beta chain, leading to sickle-shaped red blood cells and reduced oxygen transport.
 #=====================================================================
