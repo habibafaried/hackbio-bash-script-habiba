@@ -9,8 +9,8 @@ mkdir raw_reads && cd raw_reads
 
 
 ### [MODULE 01] Data download (unchanged commands)
-# 2. Download paired-end dataset using curl or wget
-# using nano to write the code and modify it easily
+# 1. Download paired-end dataset using curl or wget
+# 2.using nano to write the code and modify it easily
 nano rawreads.sh
 curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/016/SRR27013316/SRR27013316_1.fastq.gz -o SRR27013316_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_1.fastq.gz
 curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/016/SRR27013316/SRR27013316_2.fastq.gz -o SRR27013316_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
@@ -120,7 +120,7 @@ curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/091/SRR27013291/SRR27013291_1.
 curl -L ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR270/091/SRR27013291/SRR27013291_2.fastq.gz -o SRR27013291_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017_2.fastq.gz
 bash rawreads.sh
 # samples have _1/_2; count pairs by counting R1 files and R2 files one for forward and reverse read
-# to make sure ihave download all data and to count sample i will use maxdepth
+# 3.to make sure ihave download all data and to count sample i will use maxdepth
 find . -maxdepth 1 -type f -name '*_1.fastq.gz' | wc -l
 
 
@@ -131,6 +131,10 @@ find . -maxdepth 1 -type f -name '*_1.fastq.gz' | wc -l
 fastqc -version
 mkdir fastqc_results
 fastqc raw_reads/*.fastq.gz -o fastqc_results/
+
+#==================================================
+### [MODULE 03] trimming the sequences
+
 #prepare a trimming output we will make a folder for trimming seq
 mkdir -p trim
 SAMPLES=(
@@ -189,10 +193,7 @@ SAMPLES=(
 "SRR27013342_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
 "SRR27013343_Genome_Sequencing_of_Listeria_monocytogenes_SA_outbreak_2017"
 )
-### [MODULE 02] Quality control 
-# 3. Quality check with FastQC
-4. trimming of samples using fastp
-fastp -version
+
 # Loop through each sample and run fastp if it work it will print finished samples
 for SAMPLE in "${SAMPLES[@]}"; do
   echo "Processing $SAMPLE ..."
@@ -213,8 +214,9 @@ cd raw_reads
 bash trim.sh
 cp -R raw_reads/trim 
 
+
 #===========================================================
-### [MODULE 04] Assembly
+### [MODULE 04] Assembly for DE_Novo samples
 # 4. Run SPAdes on all trimmed pairs to make de_novo assembly
 SPAdes -version
 # --------------------------------
@@ -251,6 +253,8 @@ for R1 in "$TRIM_DIR"/*_1.trim.fastq.gz; do
     -o "$OUTDIR" \
     > "$OUTDIR/${STEM}.spades.log" 2>&1
 done
+
+
 #=================================================
 ## [MODULE 05] Assembly assessment
 #5. Assessing the Assembly with Quast.Py to chooae the best sequancing
@@ -273,6 +277,7 @@ echo "Done. See quast_all/report.html (and summary.tsv) for the comparison."
 #Total length ~expected? Yes (L. monocytogenes ~2.9–3.1 Mb). SRR27013338 is on the low side but still plausible.
 #Coverage even? (Not shown by QUAST) → map reads back and inspect coverage to be sure.
 #======================================
+
 ### [MODULE 06] Graph visualization
 # 6. using bandage to visualize
 # After SPAdes finished and i done quast we choose SRR27013336, the main outputs were written to:
@@ -307,7 +312,8 @@ Bandage image assembly_group/assembly_graph.fastg graph_overview.png --drawdepth
 # 5) Conclusion:
 #    Based on the Bandage-captured circular contig(s) and BLAST matches (100% identity, full coverage),
 #    I identified the organism as Listeria monocytogenes.
-# ============================
+# ===================================================================
+
 ### [MODULE 07] AMR profiling
 # test the anti microbial resistance 
 ABRicate -version
@@ -342,7 +348,8 @@ for d in assembly/*/; do
   else
     abricate "$contigs" > "$out"
   fi
-done
+done 
+bash amr.sh
 
 # Make a summary across all samples
 if compgen -G "AMR/*.tab" > /dev/null; then
@@ -354,7 +361,8 @@ fi
 bash amr.sh
 #after that i got tab and download it what i found that
 # ABRicate results (database: NCBI)
-
+======================================
+interpretation for AMR
 # Hit 1
 #   Gene: lmo0919_fam
 #   Product: lincomycin resistance ABC-F type ribosomal protection protein (ABC-F RPP)
@@ -373,6 +381,7 @@ bash amr.sh
 ### [MODULE 08] Virulence/toxin profiling 
 #8. Detect “toxin”/hyper-virulence signatures from your assemblies
 mkdir -p virulence
+nano vir.sh
 for d in assembly/*/; do
   contigs="$d/contigs.fasta"
   [ -f "$contigs" ] || continue
@@ -428,7 +437,8 @@ END{
   }
 }' virulence/*_vfdb.tab > virulence/virulence_matrix.tsv
 
-column -s $'\t' -t virulence/virulence_matrix.tsv | less -S
+column -s $'\t' -t virulence/virulence_matrix.tsv | less -S   # produce column contain virulence genes
+bash vir.sh
 
 ==========================================================
 ## Summarize key virulence genes
@@ -492,7 +502,7 @@ column -s $'\t' -t virulence/virulence_matrix.tsv | less -S
 
 
 # =========================
-# VFDB VIRULENCE SUMMARY
+# VFDB VIRULENCE SUMMARY interpretations 
 # =========================
 # Genes of interest:
 # - LIPI-1 (core virulence island): prfA, hly (LLO), plcA, plcB, actA
@@ -569,7 +579,7 @@ references for antibiotices suggestions
 2.https://pmc.ncbi.nlm.nih.gov/articles/PMC10101360/
 
 ==========================================================================================
-#final validations 
+# model [10 ] #final validations 
 #!/usr/bin/env bash
 # =============================================================================
 # TEST-ONLY VALIDATION: AMR + VIRULENCE
@@ -780,6 +790,104 @@ echo " - tests/virulence_calls.tsv"
 echo " - tests/AMR_PASS.tsv"
 echo " - tests/VIRULENCE_PASS.tsv"
 echo " - tests/amr_virulence_summary.md"
+======================================================================
+## module [12] comparing AMR and virulence to database
+##comparing the idneitfy AMR to with existance database
+#!/usr/bin/env bash
+# =============================================================================
+# TEST-ONLY VALIDATION: Compare confirmed AMR vs Virulence hits
+# Inputs: tests/AMR_PASS.tsv , tests/VIRULENCE_PASS.tsv
+# Outputs:
+# tests/amr_matrix.tsv
+# tests/virulence_matrix.tsv
+# tests/amr_virulence_overlap.tsv
+# tests/amr_virulence_summary.txt
+# =============================================================================
+set -euo pipefail
+mkdir -p tests
+
+AMR="tests/AMR_PASS.tsv"
+VIR="tests/VIRULENCE_PASS.tsv"
+
+[[ -s "$AMR" ]] || { echo "No $AMR"; exit 1; }
+[[ -s "$VIR" ]] || { echo "No $VIR"; exit 1; }
+
+# ---------- build presence/absence matrices ----------
+echo "# Building sample × gene presence matrices..."
+
+awk -F'\t' 'NR>1 {m[$1][$2]=1; samples[$1]=1; genes[$2]=1}
+END{
+  printf "sample";
+  for(g in genes) printf "\t%s", g;
+  printf "\n";
+  for(s in samples){
+    printf "%s", s;
+    for(g in genes){
+      v=(m[s][g]?1:0);
+      printf "\t%d", v;
+    }
+    printf "\n";
+  }
+}' "$AMR" | sort > tests/amr_matrix.tsv
+
+awk -F'\t' 'NR>1 {m[$1][$2]=1; samples[$1]=1; genes[$2]=1}
+END{
+  printf "sample";
+  for(g in genes) printf "\t%s", g;
+  printf "\n";
+  for(s in samples){
+    printf "%s", s;
+    for(g in genes){
+      v=(m[s][g]?1:0);
+      printf "\t%d", v;
+    }
+    printf "\n";
+  }
+}' "$VIR" | sort > tests/virulence_matrix.tsv
+
+# ---------- per-sample burden ----------
+echo "# Computing per-sample gene counts..."
+awk -F'\t' 'NR>1 {amr[$1]++} END{for(s in amr) print s,amr[s]}' OFS='\t' "$AMR" > tests/tmp_amr_counts.tsv
+awk -F'\t' 'NR>1 {vir[$1]++} END{for(s in vir) print s,vir[s]}' OFS='\t' "$VIR" > tests/tmp_vir_counts.tsv
+
+join -t $'\t' -a1 -a2 -e0 -o 0,1.2,2.2 tests/tmp_amr_counts.tsv tests/tmp_vir_counts.tsv \
+  | awk -F'\t' 'BEGIN{OFS="\t"; print "sample","n_amr","n_virulence","total"}
+                {print $1,$2,$3,$2+$3}' | sort > tests/amr_virulence_summary.txt
+
+rm -f tests/tmp_amr_counts.tsv tests/tmp_vir_counts.tsv
+
+# ---------- overlaps (co-occurrence counts) ----------
+echo "# Counting AMR–Virulence co-occurrence..."
+(
+  echo -e "amr_gene\tvir_gene\tcooccur_samples"
+  while read -r sample amr gene db acc prod id cov br depth status; do
+    [[ "$status" != "PASS" ]] && continue
+    amr_gene="$gene"
+    # collect all vir genes for same sample
+    grep -P "^$sample\t" "$VIR" | awk -F'\t' -v A="$amr_gene" '{print A"\t"$2"\t"$1}' 
+  done < <(tail -n +2 "$AMR")
+) \
+| sort | uniq -c \
+| awk 'BEGIN{OFS="\t"} {print $2,$3,$1}' \
+| sort -k3,3nr > tests/amr_virulence_overlap.tsv
+
+# ---------- pretty print ----------
+echo "==========================================" > tests/amr_virulence_summary.txt
+echo "AMR vs Virulence Comparative Validation" >> tests/amr_virulence_summary.txt
+echo "==========================================" >> tests/amr_virulence_summary.txt
+echo "" >> tests/amr_virulence_summary.txt
+echo "Per-sample gene counts:" >> tests/amr_virulence_summary.txt
+cat tests/amr_virulence_summary.txt >> tests/amr_virulence_summary.txt
+echo "" >> tests/amr_virulence_summary.txt
+echo "Top AMR–Virulence overlaps (co-occurrence counts):" >> tests/amr_virulence_summary.txt
+head -20 tests/amr_virulence_overlap.tsv >> tests/amr_virulence_summary.txt
+
+echo "Done. See:"
+echo " - tests/amr_matrix.tsv"
+echo " - tests/virulence_matrix.tsv"
+echo " - tests/amr_virulence_overlap.tsv"
+echo " - tests/amr_virulence_summary.txt"
+
 
 ##links
 github link: https://github.com/habibafaried/hackbio-bash-script-habiba/blob/main/stage1%20task%20microbes
