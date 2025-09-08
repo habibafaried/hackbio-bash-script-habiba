@@ -564,8 +564,11 @@ column -s $'\t' -t virulence/virulence_matrix.tsv | less -S
 # TL;DR
 # These outbreak isolates show a complete LIPI-1 and (mostly) complete LIPI-3 island, highlighting both LLO and Listeriolysin S as key toxins.
 # That genomic profile is consistent with a hypervirulent L. monocytogenes lineage; manage clinically with standard Listeria-active agents and av
+references for antibiotices suggestions 
+1.https://www.frontiersin.org/journals/drug-discovery/articles/10.3389/fddsv.2024.1385460/full
+2.https://pmc.ncbi.nlm.nih.gov/articles/PMC10101360/
 
-##3links
+##links
 github link: https://github.com/habibafaried/hackbio-bash-script-habiba/blob/main/stage1%20task%20microbes
 
 https://www.linkedin.com/posts/habiba-faried-a62bb11b0_hackbio-bash-linux-activity-7366582020027703296-s0Vk?utm_source=share&utm_medium=member_android&rcm=ACoAADFMi6oBwjx2cbYE0OvQ1vQcA7FnBUzmvb
