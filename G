@@ -1,6 +1,31 @@
 Here’s a clear interpretation of the mutations you found:
 
+# ================= Interpretation of Identified Mutations =================
+# rs34126315 (HBB, Glu6Val, chr11:5225469 A>T)
+# - This is the canonical HbS mutation in the β-globin gene.
+# - Substitutes valine for glutamic acid at codon 6 → produces hemoglobin S.
+# - Under low oxygen, HbS polymerizes, distorting RBCs into sickle shape.
+# - Clinical effect: vaso-occlusion, hemolysis, anemia, and painful crises.
+# - Classification: Pathogenic; primary cause of Sickle Cell Disease (HbSS or HbS with HbC/β-thalassemia).
 
+# rs34135787 (HBB, Glu6Lys, chr11:5225531 C>T)
+# - Alters the same codon, replacing glutamic acid with lysine → produces hemoglobin C (HbC).
+# - HbC alone causes mild hemolytic anemia.
+# - In combination with HbS (HbSC genotype) → sickling disorder with vaso-occlusive episodes.
+# - Classification: Pathogenic.
+
+# rs33941849 (HBB, Glu6Val, chr11:5225518 A>T)
+# - Another dbSNP entry describing the same HbS mutation (Glu6Val).
+# - Pathogenic and clinically associated with Sickle Cell Disease.
+
+# ---------------- Clinical Summary ----------------
+# - All three variants involve codon 6 of the HBB gene, the critical site for sickle hemoglobin.
+# - These variants explain Patient X’s clinical presentation:
+#   > Chronic hemolytic anemia
+#   > Vaso-occlusive pain crises
+#   > Jaundice
+# - The findings are fully consistent with Sickle Cell Disease (SCD).
+# ========================================================================
 ---
 
 Interpretation of Identified Mutations
