@@ -547,6 +547,55 @@ IGV: copies BAM+BAI to IGV/.
 
 Counts: runs featureCounts in paired-end mode (-p) with configurable strandedness (-s 0/1/2) to build the gene matrix you’ll feed into DESeq2.
 
+
+
+
+you want a dedicated script just for BAM indexing and IGV prep, like your reference but adapted to the human bipolar samples (SRR33243164–71).
+
+after alignment with STAR you’ll already have BAMs like:
+
+mapped/SRR33243164.Aligned.sortedByCoord.out.bam
+mapped/SRR33243165.Aligned.sortedByCoord.out.bam
+...
+mapped/SRR33243171.Aligned.sortedByCoord.out.bam
+
+Script: 04_index_for_igv.sh
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Directories
+MAP_DIR="mapped"
+IGV_DIR="IGV"
+LOG_DIR="logs"
+
+mkdir -p "$IGV_DIR" "$LOG_DIR"
+
+# Index each BAM
+for bam in ${MAP_DIR}/*.Aligned.sortedByCoord.out.bam; do
+  echo "[STEP] samtools index on $(basename "$bam")"
+  samtools index "$bam" |& tee -a "${LOG_DIR}/samtools_index.log"
+done
+
+# Copy BAMs and indexes to IGV folder
+cp ${MAP_DIR}/*.Aligned.sortedByCoord.out.bam ${IGV_DIR}/
+cp ${MAP_DIR}/*.Aligned.sortedByCoord.out.bam.bai ${IGV_DIR}/
+
+echo "[DONE] Indexed BAMs copied to ${IGV_DIR}/"
+echo "Open https://igv.org/app/ and load BAM + BAI from ${IGV_DIR}/"
+
+Run it
+chmod +x 04_index_for_igv.sh
+./04_index_for_igv.sh
+
+
+✅ This will:
+
+Create .bai index for every mapped/*Aligned.sortedByCoord.out.bam
+
+Copy BAM + BAI into an IGV/ folder
+
+Ready to drag-and-drop into IGV Web App
+ or open in IGV Desktop
 Tip on strandedness
 
 If your library is stranded reverse (common for TruSeq Stranded / dUTP), rerun featureCounts with FC_STRAND=2:
