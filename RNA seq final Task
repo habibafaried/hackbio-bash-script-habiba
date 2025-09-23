@@ -1,0 +1,88 @@
+#Unmasking Molecular Signatures of Bipolar II Disorder — RNA‑seq End‑to‑End Pipeline
+#Deliverable: A complete, reproducible Markdown + code solution to process RNA‑seq data from SRA, quantify gene expression in iPSC-derived microglia-like cells, run differential expression for BD‑II subtypes (FBD vs SBD) and matched controls (FHC vs SHC), perform enrichment (GO/KEGG/GSEA), visualize (QC, PCA, heatmaps, volcano), and produce a stakeholder-facing report.
+#Note on Subtype Labels: The provided SRA runs (SRR33243164–SRR33243171) include two cohorts ("Bipolar disorder" vs "Healthy control"). Familial (FBD/FHC) vs sporadic (SBD/SHC) statuses are not encoded in these accessions. This pipeline supports those contrasts when metadata are available. In the included metadata/sample_sheet.csv, fill the subtype column accordingly (FBD, SBD, FHC, SHC). If unknown, set to BD or HC and proceed with BD vs HC.
+#Project Overview
+#Biological Rationale: Microglia orchestrate synaptic pruning, immune signaling, and neurodevelopment. iPSC-derived microglia-like cells enable patient-specific, cell-intrinsic transcriptomics.
+#FBD vs SBD could share core immune/synaptic dysregulation but diverge in transcriptional programs. RNA‑seq lets us quantify these signatures.
+#Contrasts
+#SBD vs SHC
+#FBD vs FHC
+#SBD vs FBD (PCA separation + DEGs)
+#Key Readouts
+#QC & alignment metrics (FastQC/MultiQC).
+#Normalized counts (DESeq2 size factors).
+#DEGs (padj < 0.05, |log2FC| ≥ 1 by default).
+#GO/KEGG enrichment; immune vs synaptic pathways.
+#Shared vs unique signatures (overlap analysis).
+#Publication-grade plots (volcano, heatmap, PCA, enrichment).
+#dirctrory layout
+bd2_rnaseq/
+├── envs/
+│ ├── rnaseq.yaml # Conda env for preprocessing & alignment
+│ └── rstats.yaml # Conda env for R/DE analysis
+├── references/
+│ ├── gencode.v46.annotation.gtf.gz
+│ ├── GRCh38.primary_assembly.genome.fa.gz
+│ └── STARindex/ # STAR index (generated)
+├── metadata/
+│ └── sample_sheet.csv # sample-to-condition mapping
+├── raw_fastq/ # output of fasterq-dump
+├── trimmed_fastq/ # fastp/trimmomatic outputs
+├── qc/
+│ ├── fastqc_raw/
+│ ├── fastqc_trimmed/
+│ └── multiqc/
+├── alignments/
+│ └── STAR/ # .bam, .bam.bai, logs
+├── counts/
+│ ├── gene_counts.txt # featureCounts matrix
+│ └── sample_summaries.txt
+├── r/ # R analysis scripts
+│ ├── 01_deseq2.R
+│ ├── 02_enrichment.R
+│ ├── 03_gsea.R
+│ └── 04_overlap.R
+├── reports/
+│ ├── figures/ # all plots
+│ └── BDII_report.qmd # Quarto report (or .Rmd)
+├── Snakefile # Snakemake workflow
+└── README.md # this file
+#===================================================================================
+#modal 00 create enviroment and check versions
+Environment Setup (Conda)
+#Create two environments: one for preprocessing/alignment, one for R analysis.
+#envs/rnaseq.yaml
+conda activate rnaseq
+#=======================================================================================
+#modal 01 download data using SRA explorar
+nano rawdata.sh
+mkdir clean_files
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/065/SRR33243165/SRR33243165_1.fastq.gz
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/065/SRR33243165/SRR33243165_2.fastq.gz
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/066/SRR33243166/SRR33243166_1.fastq.gz
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/066/SRR33243166/SRR33243166_2.fastq.gz
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/064/SRR33243164/SRR33243164_1.fastq.gz
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/064/SRR33243164/SRR33243164_2.fastq.gz
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/067/SRR33243167/SRR33243167_1.fastq.gz
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/067/SRR33243167/SRR33243167_2.fastq.gz
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/068/SRR33243168/SRR33243168_1.fastq.gz
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/068/SRR33243168/SRR33243168_2.fastq.gz
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/069/SRR33243169/SRR33243169_1.fastq.gz
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/069/SRR33243169/SRR33243169_2.fastq.gz
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/070/SRR33243170/SRR33243170_1.fastq.gz
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/070/SRR33243170/SRR33243170_2.fastq.gz
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/071/SRR33243171/SRR33243171_1.fastq.gz
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/071/SRR33243171/SRR33243171_2.fastq.gz
+bash rawdata.sh
+# our data is paried-end
+# Decide paired-end vs single-end
+#The dataset you pulled (SRR33243164–SRR33243171) clearly has two FASTQ files per run (_1.fastq.gz and _2.fastq.gz).
+#That means these are paired-end (PE) reads.
+#Detects splice junctions more reliably.
+#More accurate quantification in repetitive or low-complexity regions.
+#Improves transcript assembly
+#==========================================================================================
+#modal 02 QC checkpoints
+#Per-base quality > 30 for most cycles.
+#Minimal adapter content after trimming (if needed, run fastp).
+#Duplication and GC content within expected ranges.
