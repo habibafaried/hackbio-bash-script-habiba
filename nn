@@ -1,0 +1,397 @@
+Thought for 11s
+
+Perfect—let’s turn your raw EBI-FTP downloads into a clean, human RNA-seq (paired-end) QC + trimming module. I’ll give you two copy-pasteable scripts:
+
+01_download.sh → uses your exact wget links, validates gzip, and organizes files
+
+02_qc_trim.sh → runs FastQC on raw files, fastp trimming (paired-end), then FastQC on trimmed files and a MultiQC summary
+
+Tools you need installed: fastqc, fastp, multiqc (e.g., via conda: conda install -c bioconda fastqc fastp multiqc)
+
+Script 1 — download exactly those FASTQs
+
+Save as 01_download.sh:
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Make folders
+mkdir -p raw_fastq logs
+
+# --- Your exact downloads (paired-end) ---
+wget -c -O raw_fastq/SRR33243165_1.fastq.gz ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/065/SRR33243165/SRR33243165_1.fastq.gz |& tee -a logs/wget.log
+wget -c -O raw_fastq/SRR33243165_2.fastq.gz ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/065/SRR33243165/SRR33243165_2.fastq.gz |& tee -a logs/wget.log
+wget -c -O raw_fastq/SRR33243166_1.fastq.gz ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/066/SRR33243166/SRR33243166_1.fastq.gz |& tee -a logs/wget.log
+wget -c -O raw_fastq/SRR33243166_2.fastq.gz ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/066/SRR33243166/SRR33243166_2.fastq.gz |& tee -a logs/wget.log
+wget -c -O raw_fastq/SRR33243164_1.fastq.gz ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/064/SRR33243164/SRR33243164_1.fastq.gz |& tee -a logs/wget.log
+wget -c -O raw_fastq/SRR33243164_2.fastq.gz ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/064/SRR33243164/SRR33243164_2.fastq.gz |& tee -a logs/wget.log
+wget -c -O raw_fastq/SRR33243167_1.fastq.gz ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/067/SRR33243167/SRR33243167_1.fastq.gz |& tee -a logs/wget.log
+wget -c -O raw_fastq/SRR33243167_2.fastq.gz ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/067/SRR33243167/SRR33243167_2.fastq.gz |& tee -a logs/wget.log
+wget -c -O raw_fastq/SRR33243168_1.fastq.gz ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/068/SRR33243168/SRR33243168_1.fastq.gz |& tee -a logs/wget.log
+wget -c -O raw_fastq/SRR33243168_2.fastq.gz ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/068/SRR33243168/SRR33243168_2.fastq.gz |& tee -a logs/wget.log
+wget -c -O raw_fastq/SRR33243169_1.fastq.gz ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/069/SRR33243169/SRR33243169_1.fastq.gz |& tee -a logs/wget.log
+wget -c -O raw_fastq/SRR33243169_2.fastq.gz ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/069/SRR33243169/SRR33243169_2.fastq.gz |& tee -a logs/wget.log
+wget -c -O raw_fastq/SRR33243170_1.fastq.gz ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/070/SRR33243170/SRR33243170_1.fastq.gz |& tee -a logs/wget.log
+wget -c -O raw_fastq/SRR33243170_2.fastq.gz ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/070/SRR33243170/SRR33243170_2.fastq.gz |& tee -a logs/wget.log
+wget -c -O raw_fastq/SRR33243171_1.fastq.gz ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/071/SRR33243171/SRR33243171_1.fastq.gz |& tee -a logs/wget.log
+wget -c -O raw_fastq/SRR33243171_2.fastq.gz ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/071/SRR33243171/SRR33243171_2.fastq.gz |& tee -a logs/wget.log
+
+# --- Basic integrity check for each gzip ---
+echo "[INFO] Validating gzip files…"
+for f in raw_fastq/*.fastq.gz; do
+  gunzip -t "$f" || { echo "[ERROR] Corrupt file: $f"; exit 1; }
+done
+
+echo "[DONE] All FASTQs downloaded to raw_fastq/"
+
+
+Run it:
+
+chmod +x 01_download.sh
+./01_download.sh
+
+Script 2 — QC, trimming (paired-end), QC again + MultiQC
+
+Save as 02_qc_trim.sh:
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Directories
+mkdir -p qc/fastqc_raw qc/fastqc_trim trim_reports clean_files logs
+
+# 1) FastQC on RAW (paired-end: run on both R1 and R2)
+echo "[STEP] FastQC on raw FASTQs"
+fastqc -t 4 -o qc/fastqc_raw raw_fastq/*.fastq.gz |& tee -a logs/fastqc_raw.log
+
+# 2) fastp trimming (paired-end)
+#    - auto adapter detection
+#    - quality filters
+#    - HTML+JSON reports per sample
+#    - outputs gzipped trimmed FASTQs into clean_files/
+echo "[STEP] fastp trimming (paired-end)"
+pair_list=$(ls raw_fastq/*_1.fastq.gz | sed 's/_1.fastq.gz//' | xargs -n1 basename)
+
+for base in $pair_list; do
+  R1="raw_fastq/${base}_1.fastq.gz"
+  R2="raw_fastq/${base}_2.fastq.gz"
+
+  if [[ ! -f "$R2" ]]; then
+    echo "[WARN] Missing ${base}_2.fastq.gz — skipping (this loop expects paired-end)."
+    continue
+  fi
+
+  outR1="clean_files/${base}_1.trim.fastq.gz"
+  outR2="clean_files/${base}_2.trim.fastq.gz"
+  html="trim_reports/${base}.fastp.html"
+  json="trim_reports/${base}.fastp.json"
+
+  echo "[INFO] Trimming $base"
+  fastp \
+    -i "$R1" -I "$R2" \
+    -o "$outR1" -O "$outR2" \
+    --detect_adapter_for_pe \
+    --thread 8 \
+    --trim_front1 0 --trim_front2 0 \
+    --qualified_quality_phred 15 \
+    --length_required 25 \
+    --html "$html" --json "$json" \
+    |& tee "logs/${base}.fastp.log"
+done
+
+# 3) FastQC on TRIMMED files
+echo "[STEP] FastQC on trimmed FASTQs"
+fastqc -t 4 -o qc/fastqc_trim clean_files/*.trim.fastq.gz |& tee -a logs/fastqc_trim.log
+
+# 4) MultiQC summary (raw + trimmed + fastp)
+echo "[STEP] MultiQC summary"
+multiqc -o qc qc |& tee -a logs/multiqc.log
+
+echo "[DONE] QC & trimming complete."
+echo "      - Raw FastQC:       qc/fastqc_raw/"
+echo "      - Trimmed FastQC:   qc/fastqc_trim/"
+echo "      - fastp reports:    trim_reports/*.html"
+echo "      - MultiQC summary:  qc/multiqc_report.html"
+echo "      - Trimmed FASTQs:   clean_files/*.trim.fastq.gz"
+
+
+Run it:
+
+chmod +x 02_qc_trim.sh
+./02_qc_trim.sh
+
+Notes tailored for human RNA-seq (not C. elegans)
+
+The QC + trimming steps are organism-agnostic, so they work for human out of the box.
+
+When you move on to alignment/quantification for human:
+
+STAR to GRCh38 (GENCODE GTF recommended).
+
+Or Salmon with a human transcriptome index.
+
+For featureCounts after alignment, remember paired mode: add -p and set strandedness with -s 0/1/2 as appropriate to your library.
+
+If you want, I can add a third script 03_align_counts_star.sh that aligns these trimmed reads to GRCh38 with STAR and generates a gene counts matrix with featureCounts in paired mode.
+
+
+
+
+
+
+
+
+
+
+
+==================
+0) Project folders and references
+mkdir -p raw_fastq clean_files trim_reports qc/fastqc_raw qc/fastqc_trim qc/multiqc \
+         references/STARindex alignments counts logs metadata reports/figures r
+
+
+Place these reference files in references/:
+
+GRCh38.primary_assembly.genome.fa.gz
+
+gencode.v46.annotation.gtf.gz (or newer GENCODE; just keep names consistent)
+
+Build the STAR index (once)
+# Adjust threads to your machine
+THREADS=12
+STAR --runThreadN $THREADS \
+     --runMode genomeGenerate \
+     --genomeDir references/STARindex \
+     --genomeFastaFiles references/GRCh38.primary_assembly.genome.fa.gz \
+     --sjdbGTFfile references/gencode.v46.annotation.gtf.gz \
+     --sjdbOverhang 100
+
+1) 01_download.sh — download all paired FASTQs (your exact EBI links)
+#!/usr/bin/env bash
+set -euo pipefail
+
+mkdir -p raw_fastq logs
+
+download() {
+  local url="$1"
+  local out="raw_fastq/$(basename "$url")"
+  echo "[INFO] Fetch $url"
+  wget -c --tries=10 --timeout=30 -O "$out" "$url" |& tee -a logs/wget.log
+  gunzip -t "$out" || { echo "[ERROR] Corrupt gz: $out"; exit 1; }
+}
+
+# All 8 runs (paired-end)
+download ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/064/SRR33243164/SRR33243164_1.fastq.gz
+download ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/064/SRR33243164/SRR33243164_2.fastq.gz
+download ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/065/SRR33243165/SRR33243165_1.fastq.gz
+download ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/065/SRR33243165/SRR33243165_2.fastq.gz
+download ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/066/SRR33243166/SRR33243166_1.fastq.gz
+download ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/066/SRR33243166/SRR33243166_2.fastq.gz
+download ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/067/SRR33243167/SRR33243167_1.fastq.gz
+download ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/067/SRR33243167/SRR33243167_2.fastq.gz
+download ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/068/SRR33243168/SRR33243168_1.fastq.gz
+download ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/068/SRR33243168/SRR33243168_2.fastq.gz
+download ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/069/SRR33243169/SRR33243169_1.fastq.gz
+download ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/069/SRR33243169/SRR33243169_2.fastq.gz
+download ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/070/SRR33243170/SRR33243170_1.fastq.gz
+download ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/070/SRR33243170/SRR33243170_2.fastq.gz
+download ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/071/SRR33243171/SRR33243171_1.fastq.gz
+download ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR332/071/SRR33243171/SRR33243171_2.fastq.gz
+
+echo "[DONE] FASTQs in raw_fastq/"
+
+
+Run:
+
+chmod +x 01_download.sh
+./01_download.sh
+
+2) 02_qc_trim.sh — FastQC → fastp trimming (paired) → FastQC → MultiQC
+#!/usr/bin/env bash
+set -euo pipefail
+
+THREADS=8
+mkdir -p qc/fastqc_raw qc/fastqc_trim trim_reports clean_files logs
+
+echo "[STEP] FastQC on raw"
+fastqc -t $THREADS -o qc/fastqc_raw raw_fastq/*.fastq.gz |& tee -a logs/fastqc_raw.log
+
+echo "[STEP] fastp trimming (paired-end)"
+pair_list=$(ls raw_fastq/*_1.fastq.gz | sed 's/_1.fastq.gz//' | xargs -n1 basename)
+
+for base in $pair_list; do
+  R1="raw_fastq/${base}_1.fastq.gz"
+  R2="raw_fastq/${base}_2.fastq.gz"
+  outR1="clean_files/${base}_1.trim.fastq.gz"
+  outR2="clean_files/${base}_2.trim.fastq.gz"
+  html="trim_reports/${base}.fastp.html"
+  json="trim_reports/${base}.fastp.json"
+
+  echo "[INFO] Trimming $base"
+  fastp \
+    -i "$R1" -I "$R2" \
+    -o "$outR1" -O "$outR2" \
+    --detect_adapter_for_pe \
+    --qualified_quality_phred 15 \
+    --length_required 25 \
+    --thread $THREADS \
+    --html "$html" --json "$json" \
+    |& tee "logs/${base}.fastp.log"
+done
+
+echo "[STEP] FastQC on trimmed"
+fastqc -t $THREADS -o qc/fastqc_trim clean_files/*.trim.fastq.gz |& tee -a logs/fastqc_trim.log
+
+echo "[STEP] MultiQC summary"
+multiqc -o qc qc |& tee -a logs/multiqc.log
+
+echo "[DONE] Trimming & QC complete"
+
+
+Run:
+
+chmod +x 02_qc_trim.sh
+./02_qc_trim.sh
+
+3) 03_align_counts_star.sh — STAR alignment (GRCh38) + featureCounts gene matrix
+#!/usr/bin/env bash
+set -euo pipefail
+
+THREADS=12
+STAR_INDEX="references/STARindex"
+GTF="references/gencode.v46.annotation.gtf.gz"
+STRAND=0   # 0=unstranded, 1=forward, 2=reverse (common for dUTP/Illumina TruSeq Stranded)
+
+mkdir -p alignments counts logs
+
+pair_list=$(ls clean_files/*_1.trim.fastq.gz | sed 's/_1.trim.fastq.gz//' | xargs -n1 basename | sed 's#clean_files/##')
+
+for base in $pair_list; do
+  R1="clean_files/${base}_1.trim.fastq.gz"
+  R2="clean_files/${base}_2.trim.fastq.gz"
+  pre="alignments/${base}"
+
+  echo "[STEP] STAR align $base"
+  STAR \
+    --runThreadN $THREADS \
+    --genomeDir "$STAR_INDEX" \
+    --readFilesIn "$R1" "$R2" \
+    --readFilesCommand zcat \
+    --outFileNamePrefix "${pre}." \
+    --outSAMtype BAM SortedByCoordinate \
+    --quantMode GeneCounts
+
+  echo "[STEP] samtools index $base"
+  samtools index "${pre}.Aligned.sortedByCoord.out.bam"
+done
+
+echo "[STEP] featureCounts (paired mode)"
+featureCounts -T $THREADS -p -s $STRAND \
+  -t exon -g gene_id \
+  -a "$GTF" \
+  -o counts/gene_counts.txt \
+  alignments/*.Aligned.sortedByCoord.out.bam |& tee counts/featureCounts.log
+
+echo "[DONE] BAMs in alignments/, counts in counts/gene_counts.txt"
+
+
+Run:
+
+chmod +x 03_align_counts_star.sh
+./03_align_counts_star.sh
+
+
+🔎 Strandedness tip: If you’re unsure, check counts/featureCounts.log or run RSeQC infer_experiment.py. If library is reverse-stranded (common), set STRAND=2 and re-run featureCounts.
+
+4) metadata/sample_sheet.csv — simple case/control sheet
+cat > metadata/sample_sheet.csv <<'CSV'
+sample,sra,age,subtype
+SRR33243164,SRR33243164,28,BD
+SRR33243165,SRR33243165,33,BD
+SRR33243166,SRR33243166,38,BD
+SRR33243167,SRR33243167,36,BD
+SRR33243168,SRR33243168,25,HC
+SRR33243169,SRR33243169,24,HC
+SRR33243170,SRR33243170,45,HC
+SRR33243171,SRR33243171,67,HC
+CSV
+
+5) r/DESeq2_all.R — PCA, DEGs, volcano, heatmap (BD vs HC)
+suppressPackageStartupMessages({
+  library(DESeq2); library(tidyverse); library(EnhancedVolcano); library(pheatmap); library(ggrepel); library(apeglm)
+})
+
+cnt_path <- "counts/gene_counts.txt"
+meta_path <- "metadata/sample_sheet.csv"
+fig_dir  <- "reports/figures"; dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+
+# Read featureCounts matrix
+raw <- data.table::fread(cnt_path, skip=1)
+counts <- as.data.frame(raw[, -(1:6)])
+rownames(counts) <- raw$Geneid
+colnames(counts) <- gsub(".Aligned.sortedByCoord.out.bam", "", colnames(counts))
+colnames(counts) <- gsub("^alignments/", "", colnames(counts))
+
+meta <- readr::read_csv(meta_path, show_col_types = FALSE)
+stopifnot(all(meta$sra %in% colnames(counts)))
+counts <- counts[, meta$sra]
+
+# Group: BD vs HC from 'subtype'
+meta <- meta %>%
+  mutate(group = ifelse(subtype == "HC", "HC", "BD")) %>%
+  column_to_rownames("sra")
+
+dds <- DESeqDataSetFromMatrix(round(counts), colData = meta, design = ~ group)
+
+# Filter low counts
+keep <- rowSums(counts(dds) >= 10) >= 2
+dds <- dds[keep,]
+
+dds <- DESeq(dds)
+vsd <- vst(dds, blind=FALSE)
+
+# PCA
+pca_df <- plotPCA(vsd, intgroup = "group", returnData = TRUE)
+percentVar <- round(100 * attr(pca_df, "percentVar"))
+p_pca <- ggplot(pca_df, aes(PC1, PC2, color=group, label=name)) +
+  geom_point(size=3) + ggrepel::geom_text_repel(max.overlaps = 12) +
+  xlab(paste0("PC1 (", percentVar[1],"%)")) +
+  ylab(paste0("PC2 (", percentVar[2],"%)")) +
+  theme_bw(base_size = 12)
+ggsave(file.path(fig_dir, "PCA_BD_vs_HC.png"), p_pca, width=6, height=5, dpi=300)
+
+# DE: BD vs HC
+res <- lfcShrink(dds, contrast=c("group","BD","HC"), type="apeglm")
+res_df <- as.data.frame(res) %>% rownames_to_column("gene") %>% arrange(padj)
+readr::write_csv(res_df, "reports/DE_BD_vs_HC.csv")
+
+# Volcano
+v <- EnhancedVolcano(res_df, lab=res_df$gene, x="log2FoldChange", y="padj",
+                     pCutoff=0.05, FCcutoff=1.0, pointSize=1.5, labSize=2.5,
+                     title="BD vs HC")
+ggsave(file.path(fig_dir, "Volcano_BD_vs_HC.png"), v, width=7, height=6, dpi=300)
+
+# Heatmap of top variable genes
+topGenes <- head(order(matrixStats::rowVars(assay(vsd)), decreasing=TRUE), 500)
+mat <- assay(vsd)[topGenes, ]
+ann <- as.data.frame(colData(vsd)[,"group", drop=FALSE])
+pheatmap::pheatmap(mat, annotation_col = ann, show_rownames=FALSE, fontsize_col=10,
+                   filename = file.path(fig_dir, "Heatmap_topVar_BD_vs_HC.png"),
+                   width=7, height=9)
+
+# Save normalized counts
+norm_counts <- as.data.frame(counts(dds, normalized=TRUE)) %>% rownames_to_column("gene")
+readr::write_csv(norm_counts, "reports/normalized_counts.csv")
+
+message("[DONE] DESeq2 finished. See reports/figures and reports/*.csv")
+
+
+Run:
+
+Rscript r/DESeq2_all.R
+
+Run order (all samples)
+./01_download.sh
+./02_qc_trim.sh
+./03_align_counts_star.sh
+Rscript r/DESeq2_all.R
