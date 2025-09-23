@@ -395,3 +395,160 @@ Run order (all samples)
 ./02_qc_trim.sh
 ./03_align_counts_star.sh
 Rscript r/DESeq2_all.R
+
+
+
+awesome—here’s a human (GRCh38), paired-end version of your reference code, tailored to the bipolar project and to the exact file layout we’ve been using (clean_files/*_1.trim.fastq.gz + *_2.trim.fastq.gz). It mirrors your C. elegans example but swaps in human genome + annotation, builds a STAR index, aligns all trimmed pairs, runs quick BAM stats, and (bonus) generates a gene counts matrix with featureCounts for downstream DESeq2.
+
+Requirements installed/available on your PATH: STAR, samtools, wget, gunzip (or gzip), and featureCounts (from subread).
+Directory assumptions: you already ran trimming and have clean_files/ with paired files like SRR33243164_1.trim.fastq.gz and SRR33243164_2.trim.fastq.gz.
+
+One script to set up genome, index, align, QC, and count
+
+Save as human_star_align_counts.sh and run with bash human_star_align_counts.sh.
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+# -------------------------------
+# CONFIG
+# -------------------------------
+THREADS=${THREADS:-12}
+
+# Choose a local reference folder
+REF="references"
+GENOME_FA="${REF}/GRCh38.primary_assembly.genome.fa.gz"   # change if you already have a FASTA
+GTF_GENCODE="${REF}/gencode.v46.annotation.gtf.gz"        # change if you already have a GTF
+STAR_INDEX="${REF}/STARindex"
+
+# Library strandedness for featureCounts:
+#   0=unstranded, 1=forward, 2=reverse (common for TruSeq Stranded/dUTP)
+FC_STRAND=${FC_STRAND:-0}
+
+# Input/Output folders
+TRIM_DIR="clean_files"     # where *_1.trim.fastq.gz + *_2.trim.fastq.gz live
+MAP_DIR="mapped"
+IGV_DIR="IGV"
+COUNT_DIR="counts"
+LOG_DIR="logs"
+
+mkdir -p "$REF" "$STAR_INDEX" "$MAP_DIR" "$IGV_DIR" "$COUNT_DIR" "$LOG_DIR"
+
+# -------------------------------
+# 1) DOWNLOAD HUMAN GENOME + GTF (skip if already present)
+#    (You can replace with your preferred mirror/versions.)
+# -------------------------------
+if [[ ! -f "$GENOME_FA" ]]; then
+  echo "[INFO] Downloading GRCh38 primary assembly FASTA (gz)..."
+  wget -O "$GENOME_FA" \
+    https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_46/GRCh38.primary_assembly.genome.fa.gz
+fi
+
+if [[ ! -f "$GTF_GENCODE" ]]; then
+  echo "[INFO] Downloading GENCODE v46 GTF (gz)..."
+  wget -O "$GTF_GENCODE" \
+    https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_46/gencode.v46.annotation.gtf.gz
+fi
+
+# Optional integrity checks
+gunzip -t "$GENOME_FA"
+gunzip -t "$GTF_GENCODE"
+
+# -------------------------------
+# 2) BUILD STAR INDEX (once)
+#    sjdbOverhang = readLength-1; 100 is fine for ~101bp PE reads.
+# -------------------------------
+if [[ ! -f "${STAR_INDEX}/SA" ]]; then
+  echo "[INFO] Building STAR index at ${STAR_INDEX}"
+  STAR \
+    --runThreadN "$THREADS" \
+    --runMode genomeGenerate \
+    --genomeDir "$STAR_INDEX" \
+    --genomeFastaFiles "$GENOME_FA" \
+    --sjdbGTFfile "$GTF_GENCODE" \
+    --sjdbOverhang 100 |& tee "${LOG_DIR}/star_index.log"
+else
+  echo "[INFO] STAR index already exists at ${STAR_INDEX}"
+fi
+
+# -------------------------------
+# 3) ALIGN ALL TRIMMED PAIRED-END SAMPLES
+#    Mirrors your loop, but for paired-end and gzip.
+# -------------------------------
+echo "[INFO] Aligning paired-end trimmed reads from ${TRIM_DIR}"
+
+# Build base names from R1 files (strip the suffix `_1.trim.fastq.gz`)
+mapfile -t BASES < <(ls ${TRIM_DIR}/*_1.trim.fastq.gz | sed 's#^.*/##' | sed 's/_1\.trim\.fastq\.gz$//')
+
+for base in "${BASES[@]}"; do
+  R1="${TRIM_DIR}/${base}_1.trim.fastq.gz"
+  R2="${TRIM_DIR}/${base}_2.trim.fastq.gz"
+  [[ -f "$R1" && -f "$R2" ]] || { echo "[WARN] Missing pair for ${base}, skipping"; continue; }
+
+  # Output prefix mirrors your C. elegans example
+  PREFIX="${MAP_DIR}/${base}."
+
+  echo "[STEP] STAR: ${base}"
+  STAR \
+    --runThreadN "$THREADS" \
+    --genomeDir "$STAR_INDEX" \
+    --readFilesIn "$R1" "$R2" \
+    --readFilesCommand zcat \
+    --outSAMtype BAM SortedByCoordinate \
+    --outSAMattributes All \
+    --outFileNamePrefix "$PREFIX" |& tee "${LOG_DIR}/${base}.star.log"
+
+  # STAR default sorted BAM name with this prefix:
+  BAM="${PREFIX}Aligned.sortedByCoord.out.bam"
+
+  echo "[STEP] samtools index: ${base}"
+  samtools index "$BAM"
+
+  echo "[STEP] quick stats (view/head, count, flagstat): ${base}"
+  # (head without pager)
+  samtools view "$BAM" | head -n 5 > "${LOG_DIR}/${base}.view.head.txt" || true
+  samtools view -c "$BAM" > "${LOG_DIR}/${base}.view.count.txt"
+  samtools flagstat "$BAM" > "${LOG_DIR}/${base}.flagstat.txt"
+done
+
+# -------------------------------
+# 4) COPY BAMs FOR IGV BROWSING
+# -------------------------------
+echo "[INFO] Copying BAMs and BAI to ${IGV_DIR}"
+cp "${MAP_DIR}"/*.bam "${IGV_DIR}/"
+cp "${MAP_DIR}"/*.bai "${IGV_DIR}/"
+
+# -------------------------------
+# 5) GENE-LEVEL COUNTS (featureCounts)
+#    Paired-end mode (-p) and strandedness (-s ${FC_STRAND})
+# -------------------------------
+echo "[STEP] featureCounts (paired-end, -p; strand=${FC_STRAND})"
+featureCounts -T "$THREADS" -p -s "$FC_STRAND" \
+  -t exon -g gene_id \
+  -a "$GTF_GENCODE" \
+  -o "${COUNT_DIR}/gene_counts.txt" \
+  "${MAP_DIR}"/*.Aligned.sortedByCoord.out.bam |& tee "${COUNT_DIR}/featureCounts.log"
+
+echo "[DONE] BAMs: ${MAP_DIR} | IGV copies: ${IGV_DIR} | Counts: ${COUNT_DIR}/gene_counts.txt"
+
+What changed vs your C. elegans snippet?
+
+Human references: downloads GRCh38 FASTA and GENCODE v46 GTF (you can swap versions/URLs if you prefer another mirror).
+
+STAR index: built under references/STARindex with --sjdbGTFfile so splice junctions are annotated (important for RNA-seq).
+
+Paired-end loop: automatically finds every *_1.trim.fastq.gz, pairs it with *_2.trim.fastq.gz, and aligns using --readFilesCommand zcat (so you don’t need to gunzip).
+
+Sorted BAMs + index: STAR outputs sorted BAM; we index with samtools index.
+
+Quick stats: samtools view | head, samtools view -c, samtools flagstat saved to logs/.
+
+IGV: copies BAM+BAI to IGV/.
+
+Counts: runs featureCounts in paired-end mode (-p) with configurable strandedness (-s 0/1/2) to build the gene matrix you’ll feed into DESeq2.
+
+Tip on strandedness
+
+If your library is stranded reverse (common for TruSeq Stranded / dUTP), rerun featureCounts with FC_STRAND=2:
+
+FC_STRAND=2 THREADS=12 bash human_star_align_counts.sh
