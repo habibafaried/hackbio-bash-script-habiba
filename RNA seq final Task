@@ -86,3 +86,41 @@ bash rawdata.sh
 #Per-base quality > 30 for most cycles.
 #Minimal adapter content after trimming (if needed, run fastp).
 #Duplication and GC content within expected ranges.
+#mkdir -p qc
+
+for filename in  clean_files/*.fastq.gz; do
+	fastqc -o qc/ $filename
+done
+#============================================================================================
+#modal 03 trimming the raw data
+#to remove all bad quility base and adaptors 
+#!/bin/bash
+#trimming files
+mkdir -p trim
+SAMPLES=(
+ "SRR33243164"
+"SRR33243165"
+"SRR33243166"
+"SRR33243167"
+"SRR33243168"
+"SRR33243169"
+"SRR33243170"
+"SRR33243171"
+)
+# Loop through each sample and run fastp
+for SAMPLE in "${SAMPLES[@]}"; do
+  echo "Processing $SAMPLE ..."
+
+  fastp \
+    -i "${SAMPLE}_1.fastq.gz" \
+    -I "${SAMPLE}_2.fastq.gz" \
+    -o "trim/${SAMPLE}_1.trim.fastq.gz" \
+    -O "trim/${SAMPLE}_2.trim.fastq.gz" \
+    --html "trim/${SAMPLE}_fastp.html" \
+    --json "trim/${SAMPLE}_fastp.json"
+
+  echo "Finished $SAMPLE ✅"
+done
+#====================================================================================================
+#
+#=================================================================================================
